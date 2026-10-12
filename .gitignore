@@ -1,0 +1,8 @@
+node_modules
+dist
+e2e-shots
+*.log
+.DS_Store
+dist-preview
+*.zip
+*.tsbuildinfo

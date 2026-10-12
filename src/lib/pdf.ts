@@ -1,0 +1,252 @@
+// PDF generation for agendas, minutes and reports. Runs entirely in the browser (jsPDF, loaded on demand).
+import type { Issue, Meeting } from '../types';
+import { formatDate, formatDateTime } from './dates';
+
+export interface PdfFile {
+  blob: Blob;
+  filename: string;
+}
+
+type JsPDF = import('jspdf').jsPDF;
+type AutoTable = typeof import('jspdf-autotable').default;
+
+let libs: Promise<{ jsPDF: typeof import('jspdf').jsPDF; autoTable: AutoTable }> | null = null;
+export function loadPdfLibs() {
+  if (!libs) {
+    libs = Promise.all([import('jspdf'), import('jspdf-autotable')]).then(([a, b]) => ({ jsPDF: a.jsPDF, autoTable: b.default }));
+  }
+  return libs;
+}
+
+/** Standard PDF fonts only cover Windows-1252; replace or drop anything outside it (e.g. emoji). */
+export function pdfText(s: string): string {
+  return s
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u2022\u25CF]/g, '-')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF]/g, '')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
+const M = 16; // page margin (mm)
+const NAVY: [number, number, number] = [11, 18, 32];
+const BLUE: [number, number, number] = [37, 99, 235];
+const GREY: [number, number, number] = [100, 108, 122];
+
+class Writer {
+  y = M;
+  constructor(public doc: JsPDF, public autoTable: AutoTable) {}
+  get width() {
+    return this.doc.internal.pageSize.getWidth() - M * 2;
+  }
+  get pageH() {
+    return this.doc.internal.pageSize.getHeight();
+  }
+  ensure(h: number) {
+    if (this.y + h > this.pageH - M - 8) {
+      this.doc.addPage();
+      this.y = M;
+    }
+  }
+  header(kicker: string, title: string, meta: string[]) {
+    const d = this.doc;
+    d.setFillColor(...NAVY);
+    d.rect(0, 0, d.internal.pageSize.getWidth(), 34, 'F');
+    d.setTextColor(147, 180, 255);
+    d.setFont('helvetica', 'bold');
+    d.setFontSize(8.5);
+    d.text(pdfText(kicker.toUpperCase()), M, 12);
+    d.setTextColor(255, 255, 255);
+    d.setFontSize(17);
+    d.text(pdfText(title), M, 21);
+    d.setFont('helvetica', 'normal');
+    d.setFontSize(9);
+    d.setTextColor(200, 208, 222);
+    d.text(pdfText(meta.filter(Boolean).join('   |   ')), M, 28.5);
+    this.y = 44;
+    d.setTextColor(20, 24, 33);
+  }
+  h2(text: string) {
+    this.ensure(14);
+    const d = this.doc;
+    d.setFont('helvetica', 'bold');
+    d.setFontSize(11.5);
+    d.setTextColor(...BLUE);
+    d.text(pdfText(text), M, this.y);
+    d.setDrawColor(220, 226, 236);
+    d.line(M, this.y + 2, M + this.width, this.y + 2);
+    this.y += 8;
+    d.setTextColor(20, 24, 33);
+  }
+  para(text: string, opts: { size?: number; color?: [number, number, number]; bold?: boolean; indent?: number } = {}) {
+    const d = this.doc;
+    const size = opts.size ?? 10;
+    d.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+    d.setFontSize(size);
+    d.setTextColor(...(opts.color ?? [20, 24, 33]));
+    const lines = d.splitTextToSize(pdfText(text) || '-', this.width - (opts.indent ?? 0)) as string[];
+    const lh = size * 0.42;
+    for (const line of lines) {
+      this.ensure(lh + 1);
+      d.text(line, M + (opts.indent ?? 0), this.y);
+      this.y += lh;
+    }
+    this.y += 2;
+  }
+  label(text: string, indent = 0) {
+    this.para(text.toUpperCase(), { size: 7.5, color: GREY, bold: true, indent });
+    this.y -= 1;
+  }
+  table(head: string[], body: (string | number)[][], widths?: number[]) {
+    this.autoTable(this.doc, {
+      startY: this.y,
+      head: [head.map(pdfText)],
+      body: body.map((r) => r.map((c) => pdfText(String(c)))),
+      margin: { left: M, right: M },
+      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2, textColor: [20, 24, 33], lineColor: [220, 226, 236], lineWidth: 0.2 },
+      headStyles: { fillColor: [235, 240, 250], textColor: [30, 41, 59], fontStyle: 'bold' },
+      columnStyles: widths ? Object.fromEntries(widths.map((w, i) => [i, { cellWidth: w }])) : undefined
+    });
+    // jspdf-autotable stores the final Y on the document.
+    this.y = ((this.doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY ?? this.y) + 6;
+  }
+  footer(note: string) {
+    const d = this.doc;
+    const pages = d.getNumberOfPages();
+    for (let p = 1; p <= pages; p++) {
+      d.setPage(p);
+      d.setFont('helvetica', 'normal');
+      d.setFontSize(7.5);
+      d.setTextColor(...GREY);
+      d.text(pdfText(note), M, this.pageH - 8);
+      d.text(`Page ${p} of ${pages}`, M + this.width, this.pageH - 8, { align: 'right' });
+    }
+  }
+}
+
+async function newWriter(): Promise<Writer> {
+  const { jsPDF, autoTable } = await loadPdfLibs();
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  doc.setProperties({ creator: 'BCF Hub (personal prototype)' });
+  return new Writer(doc, autoTable);
+}
+
+const footerNote = () => `Generated by BCF Hub on ${formatDateTime(new Date().toISOString())} - personal prototype, not an official Sunseeker system`;
+
+function slug(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function meetingMeta(m: Meeting): string[] {
+  return [formatDate(m.date, { weekday: true }), m.time, m.location];
+}
+
+export async function buildAgendaPdf(m: Meeting, issues: Issue[]): Promise<PdfFile> {
+  const w = await newWriter();
+  w.header(`${m.type} meeting - Agenda`, m.title, meetingMeta(m));
+  if (m.attendees) {
+    w.label('Attendees');
+    w.para(m.attendees);
+  }
+  w.h2('Agenda');
+  if (!m.agenda.length) w.para('No agenda items yet.', { color: GREY });
+  m.agenda.forEach((a, idx) => {
+    const issue = a.issueId ? issues.find((i) => i.id === a.issueId) : undefined;
+    w.ensure(18);
+    w.para(`${idx + 1}. ${a.title}`, { bold: true, size: 11 });
+    if (issue) {
+      w.para(`${issue.ref} - ${issue.department} - ${issue.category} - Priority: ${issue.priority} - Status: ${issue.status} - Raised ${formatDate(issue.dateRaised)}`, { size: 8.5, color: GREY, indent: 5 });
+      if (issue.description) w.para(issue.description, { size: 9.5, indent: 5 });
+      if (issue.managementResponse) {
+        w.label('Previous management response', 5);
+        w.para(issue.managementResponse, { size: 9.5, indent: 5 });
+      }
+    }
+    if (a.presenterNotes) {
+      w.label('Rep notes', 5);
+      w.para(a.presenterNotes, { size: 9.5, indent: 5 });
+    }
+    w.y += 2;
+  });
+  w.footer(footerNote());
+  return { blob: w.doc.output('blob'), filename: `${slug(m.type)}-agenda-${m.date}.pdf` };
+}
+
+export async function buildMinutesPdf(m: Meeting, issues: Issue[]): Promise<PdfFile> {
+  const w = await newWriter();
+  w.header(`${m.type} meeting - Minutes${m.notesApproved ? '' : ' (DRAFT - not yet approved)'}`, m.title, meetingMeta(m));
+  if (m.attendees) {
+    w.label('Attendees');
+    w.para(m.attendees);
+  }
+  if (m.minutes) {
+    w.h2('Summary');
+    w.para(m.minutes);
+  }
+  w.h2('Items discussed');
+  if (!m.agenda.length) w.para('No agenda items recorded.', { color: GREY });
+  m.agenda.forEach((a, idx) => {
+    const issue = a.issueId ? issues.find((i) => i.id === a.issueId) : undefined;
+    const action = a.actionIssueId ? issues.find((i) => i.id === a.actionIssueId) : undefined;
+    w.ensure(20);
+    w.para(`${idx + 1}. ${a.title}${issue ? `  (${issue.ref})` : ''}`, { bold: true, size: 11 });
+    w.label('Management response', 5);
+    w.para(a.managementResponse || 'None recorded.', { size: 9.5, indent: 5, color: a.managementResponse ? undefined : GREY });
+    w.label('Decision / outcome', 5);
+    w.para(a.decision || 'None recorded.', { size: 9.5, indent: 5, color: a.decision ? undefined : GREY });
+    if (action) w.para(`Tracked action: ${action.ref} - owner: ${action.actionOwner || 'not assigned'}${action.nextFollowUp ? ` - follow-up ${formatDate(action.nextFollowUp)}` : ''}`, { size: 9, indent: 5, color: BLUE });
+    w.y += 2;
+  });
+  if (m.followUps.length) {
+    w.h2('Follow-up actions');
+    w.table(
+      ['Action', 'Due', 'Status'],
+      m.followUps.map((f) => [f.text, f.dueDate ? formatDate(f.dueDate) : '-', f.done ? 'Done' : 'Open']),
+      [w.width - 60, 32, 28]
+    );
+  }
+  w.footer(footerNote());
+  return { blob: w.doc.output('blob'), filename: `${slug(m.type)}-minutes-${m.date}.pdf` };
+}
+
+export interface ReportPdfInput {
+  generatedFor: string;
+  summary: [string, string][];
+  byCategory: { label: string; count: number }[];
+  byDepartment: { label: string; count: number }[];
+  overdue: Issue[];
+  monthly: { month: string; raised: number; resolved: number; feedback: number; meetings: number; published: number }[];
+  demo: boolean;
+}
+
+export async function buildReportPdf(r: ReportPdfInput): Promise<PdfFile> {
+  const w = await newWriter();
+  w.header('BCF Hub - Representative report', 'Apprentice issues report', [r.generatedFor, r.demo ? 'Includes FICTIONAL demo data' : '']);
+  w.h2('Summary');
+  w.table(['Measure', 'Value'], r.summary, [w.width - 50, 50]);
+  w.h2('Issues raised by category');
+  w.table(['Category', 'Issues'], r.byCategory.map((c) => [c.label, c.count]), [w.width - 30, 30]);
+  w.h2('Issues by department or shed');
+  w.table(['Department / shed', 'Issues'], r.byDepartment.map((c) => [c.label, c.count]), [w.width - 30, 30]);
+  w.h2('Overdue actions');
+  if (r.overdue.length) {
+    w.table(
+      ['ID', 'Issue', 'Owner', 'Follow-up due'],
+      r.overdue.map((i) => [i.ref, i.title, i.actionOwner || '-', formatDate(i.nextFollowUp)]),
+      [22, w.width - 22 - 40 - 28, 40, 28]
+    );
+  } else w.para('No overdue actions.', { color: GREY });
+  w.h2('Monthly activity');
+  w.table(
+    ['Month', 'Raised', 'Resolved', 'Feedback', 'Meetings', 'Updates published'],
+    r.monthly.map((m) => [m.month, m.raised, m.resolved, m.feedback, m.meetings, m.published])
+  );
+  w.para('All figures are calculated from records stored in BCF Hub on this device.', { size: 8.5, color: GREY });
+  w.footer(footerNote());
+  const d = new Date();
+  return { blob: w.doc.output('blob'), filename: `bcf-hub-report-${d.toISOString().slice(0, 10)}.pdf` };
+}
