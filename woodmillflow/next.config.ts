@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 const securityHeaders = [
@@ -13,6 +14,9 @@ const nextConfig: NextConfig = {
   // Database drivers run only on the server and must not be bundled.
   serverExternalPackages: ['@electric-sql/pglite', 'postgres'],
   poweredByHeader: false,
+  // This app lives in a sub-folder of a repository that has its own lockfile.
+  outputFileTracingRoot: path.resolve(import.meta.dirname),
+  turbopack: { root: path.resolve(import.meta.dirname) },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   }

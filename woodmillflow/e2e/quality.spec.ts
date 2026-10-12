@@ -58,3 +58,15 @@ test('cross-site form posts are rejected', async ({ request }) => {
   });
   expect(res.status()).toBe(415);
 });
+
+test('demo data can be reset from Demo Settings (with confirmation)', async ({ browser }) => {
+  test.skip(Boolean(process.env.E2E_DATABASE_URL), 'Hosted mode additionally requires the reset PIN');
+  const phone = await newPhone(browser);
+  await phone.goto('/demo');
+  await phone.getByTestId('open-reset').click();
+  await expect(phone.getByTestId('reset-submit')).toBeDisabled();
+  await phone.getByTestId('reset-confirm').fill('RESET');
+  await phone.getByTestId('reset-submit').click();
+  await expect(phone.getByText('Demo data restored')).toBeVisible();
+  await expect(phone.getByTestId('order-count')).toHaveText('10');
+});

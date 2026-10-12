@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 import { expectNoHorizontalOverflow, fillItem, newLaptop, newPhone, ukToday } from './helpers';
 
 test.beforeAll(async ({ request }) => {
-  const res = await request.post('/api/demo/reset', { data: { confirm: 'RESET' } });
+  const pin = process.env.E2E_DATABASE_URL ? (process.env.E2E_RESET_PIN ?? 'e2e-pin') : undefined;
+  const res = await request.post('/api/demo/reset', { data: { confirm: 'RESET', pin } });
   expect(res.ok()).toBeTruthy();
 });
 

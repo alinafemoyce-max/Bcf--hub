@@ -200,7 +200,7 @@ export function AppShell({ role, children }: { role: ShellRole; children: React.
         </div>
       </header>
 
-      <main className={cn('mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-6 sm:py-8', focusMode ? 'pb-28' : 'pb-28 lg:pb-10')}>
+      <main className={cn('mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-6 sm:py-8', focusMode ? 'pb-48 lg:pb-10' : 'pb-28 lg:pb-10')}>
         {children}
       </main>
 

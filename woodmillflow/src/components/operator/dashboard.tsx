@@ -135,9 +135,9 @@ export function OperatorDashboard() {
                 active ? 'border-marine ring-1 ring-marine' : 'border-line hover:border-line-strong'
               )}
             >
-              <span className="flex items-center justify-between">
+              <span className="flex items-start justify-between gap-2">
                 <span className="text-[13px] font-semibold leading-tight text-muted">{c.label}</span>
-                <Icon className={cn('size-[18px]', c.status === 'in_progress' ? 'text-navy' : '')} aria-hidden />
+                <Icon className="size-[18px] shrink-0 text-subtle" aria-hidden />
               </span>
               <span className="mt-2 block text-[30px] font-bold leading-none tracking-tight text-navy tabular" data-testid={`count-${c.status}`}>
                 {counts ? counts[c.status] : '–'}

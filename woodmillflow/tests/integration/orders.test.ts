@@ -216,3 +216,21 @@ describe('demo reset', () => {
     expect(order.reference.endsWith('0019')).toBe(true);
   });
 });
+
+describe('sample data timing', () => {
+  it('places sample activity within working hours (Mon–Fri 07:00–17:00 UK)', async () => {
+    const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'short', hour: '2-digit', hourCycle: 'h23' });
+    const rows = await db.query<{ changed_at: Date | string }>('SELECT changed_at FROM status_history');
+    for (const r of rows) {
+      const parts = fmt.formatToParts(new Date(r.changed_at));
+      const hour = Number(parts.find((p) => p.type === 'hour')!.value);
+      const weekday = parts.find((p) => p.type === 'weekday')!.value;
+      const created = new Date(r.changed_at).getTime() > Date.now() - 5 * 60000; // orders created by these tests
+      if (!created) {
+        expect(['Sat', 'Sun']).not.toContain(weekday);
+        expect(hour).toBeGreaterThanOrEqual(7);
+        expect(hour).toBeLessThan(17);
+      }
+    }
+  });
+});

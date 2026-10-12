@@ -34,7 +34,8 @@ const STEPS: { time: string; title: string; device: string; doThis: string[]; sa
     title: 'Show the woodmill operator experience',
     device: 'Laptop — Work Queue',
     doThis: [
-      'Switch to “Woodmill Operator” (top right). The new request appears in the queue within a few seconds.',
+      'Switch to “Woodmill Operator” (top right). A “New request received” notice appears within a few seconds.',
+      'Click the “New Requests” summary card to show only new orders.',
       'Open the new order: point out clock number, line, every item and its measurements.',
       'Click “Accept Request”, then “Start Cutting”, then “Mark Ready for Collection”.'
     ],

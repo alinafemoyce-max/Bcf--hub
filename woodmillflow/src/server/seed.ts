@@ -48,7 +48,7 @@ interface SeedOrder {
   history: [OrderStatus, number, string?, boolean?][];
 }
 
-const DAY = 24 * 60;
+const DAY = 600; // one working day (07:00–17:00)
 
 const ORDERS: SeedOrder[] = [
   {
@@ -121,6 +121,32 @@ const SEQUENCE_AFTER_SEED = 18;
 
 const token = () => randomBytes(24).toString('base64url');
 
+const ukParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'short', hour: '2-digit', hourCycle: 'h23' });
+
+/** Woodmill working hours for sample data: Monday–Friday, 07:00–17:00 UK time. */
+function isWorkingMinute(d: Date): boolean {
+  const parts = ukParts.formatToParts(d);
+  const weekday = parts.find((p) => p.type === 'weekday')?.value;
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value);
+  return weekday !== 'Sat' && weekday !== 'Sun' && hour >= 7 && hour < 17;
+}
+
+/**
+ * Moves a time backwards (negative) or forwards by a number of working minutes, so sample orders
+ * look like they were placed and processed during a working day whenever the demo is reset.
+ */
+function shiftWorking(from: Date, minutes: number, limit?: Date): Date {
+  const step = minutes < 0 ? -60000 : 60000;
+  let remaining = Math.abs(minutes);
+  let t = from.getTime();
+  while (remaining > 0) {
+    t += step;
+    if (limit && t >= limit.getTime()) return new Date(limit.getTime() - 60000);
+    if (isWorkingMinute(new Date(t))) remaining--;
+  }
+  return new Date(t);
+}
+
 function addDays(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -159,12 +185,12 @@ export async function seed(db: Queryable, now: Date = new Date()): Promise<void>
   const today = ukCalendarDate(now);
 
   for (const o of ORDERS) {
-    const submittedAt = new Date(now.getTime() - o.minutesAgo * 60000);
+    const submittedAt = shiftWorking(now, -o.minutesAgo);
+    const at = (minutesAfter: number) => shiftWorking(submittedAt, minutesAfter, now);
     const employee = EMPLOYEES.find((e) => e.clock === o.clock)!;
     const statuses = o.history.map((h) => h[0]);
     const status: OrderStatus = statuses.at(-1) ?? 'submitted';
-    const lastChange = o.history.length ? o.history.at(-1)![1] : 0;
-    const updatedAt = new Date(submittedAt.getTime() + lastChange * 60000);
+    const updatedAt = o.history.length ? at(o.history.at(-1)![1]) : submittedAt;
     const [order] = await db.query<{ id: string }>(
       `INSERT INTO orders (reference, requester_id, requester_name, requester_clock, department_id, production_line_id,
          hull_reference, date_required, submitted_at, updated_at, status, requested_priority, urgent_reason,
@@ -198,7 +224,7 @@ export async function seed(db: Queryable, now: Date = new Date()): Promise<void>
       await db.query(
         `INSERT INTO status_history (order_id, previous_status, new_status, changed_at, changed_by, comment, comment_internal)
          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [order.id, previous, next, new Date(submittedAt.getTime() + minutes * 60000).toISOString(), operator.id,
+        [order.id, previous, next, at(minutes).toISOString(), operator.id,
           comment ?? null, internal ?? false]
       );
       previous = next;
