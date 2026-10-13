@@ -1,0 +1,7 @@
+models/
+.venv/
+work/
+*.mp4
+*.mov
+*.wav
+__pycache__/
