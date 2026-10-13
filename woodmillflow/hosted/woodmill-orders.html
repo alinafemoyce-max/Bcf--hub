@@ -1,0 +1,1106 @@
+<title>Woodmill Orders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one clear column for employees (phone first); a wider card grid for the woodmill on a laptop.
+   Deliberately a single high-contrast light theme, like workshop signage. */
+:root {
+  color-scheme: light;
+  --navy: #10243a;
+  --navy-2: #1c3a5c;
+  --ink: #16212e;
+  --muted: #4a5a6b;
+  --line: #c9d3dd;
+  --line-soft: #dfe5eb;
+  --bg: #eef1f4;
+  --card: #ffffff;
+  --focus: #1f7fc4;
+
+  /* Material colours (also carried by an icon and a name) */
+  --mat-plywood: #1d5fb8;   --mat-plywood-bg: #e6eefa;
+  --mat-mdf: #2e7d32;       --mat-mdf-bg: #e7f3e8;
+  --mat-timber: #b45f06;    --mat-timber-bg: #fbefdf;
+  --mat-veneer: #6d3fb5;    --mat-veneer-bg: #efe8fa;
+  --mat-other: #5b6573;     --mat-other-bg: #eceef1;
+
+  /* Status colours (also carried by an icon and a label) */
+  --st-pending: #5b6573;    --st-pending-bg: #eceef1;
+  --st-progress: #9a5800;   --st-progress-bg: #fff1d6;
+  --st-ready: #1d6b2f;      --st-ready-bg: #e1f2e4;
+  --st-collected: #1d4f91;  --st-collected-bg: #e3ecf8;
+
+  --danger: #b3261e;        --danger-bg: #fdeceb;
+
+  --display: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  --body: 'Atkinson Hyperlegible', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --radius: 14px;
+  --tap: 52px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.tabular { font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: var(--display); letter-spacing: 0.01em; text-wrap: balance; margin: 0; color: var(--navy); }
+
+/* ---------- shell ---------- */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: var(--navy); color: #fff;
+  padding-inline: 16px;
+}
+.topbar-inner { max-width: 1180px; margin: 0 auto; height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; color: #fff; padding: 0; min-height: 44px; }
+.brand-mark { width: 34px; height: 34px; border-radius: 8px; background: #fff; display: grid; place-items: center; flex: none; }
+.brand-name { font-family: var(--display); font-weight: 700; font-size: 23px; letter-spacing: 0.02em; }
+.demo-pill { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; background: #f4c542; color: #2a1d00; border-radius: 6px; padding: 4px 9px; white-space: nowrap; }
+.notice { background: #fff6d8; color: #4d3800; border-bottom: 1px solid #ecd897; font-size: 14px; text-align: center; padding: 7px 16px; }
+
+main { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 120px; }
+.narrow { max-width: 620px; margin-inline: auto; }
+
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  background: #fff; border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.tabbar-inner { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+.tab { background: none; border: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 14px; font-weight: 700; color: var(--muted); padding: 6px 2px; }
+.tab svg { width: 26px; height: 26px; }
+.tab[aria-current="page"] { color: var(--navy); }
+.tab[aria-current="page"] svg { color: var(--focus); }
+
+/* ---------- common ---------- */
+.card { background: var(--card); border: 1px solid var(--line-soft); border-radius: var(--radius); }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.eyebrow { font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.page-title { font-size: 34px; line-height: 1.05; }
+.lead { color: var(--muted); margin: 6px 0 0; }
+.muted { color: var(--muted); }
+.small { font-size: 15px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: var(--tap); padding: 12px 20px; border-radius: 12px;
+  border: 2px solid transparent; font-weight: 700; font-size: 18px; text-decoration: none; text-align: center;
+}
+.btn svg { width: 22px; height: 22px; flex: none; }
+.btn-primary { background: var(--navy); color: #fff; }
+.btn-primary:active { background: var(--navy-2); }
+.btn-secondary { background: #fff; color: var(--navy); border-color: var(--navy); }
+.btn-quiet { background: transparent; color: var(--navy); border-color: var(--line); }
+.btn-danger { background: #fff; color: var(--danger); border-color: var(--danger); }
+.btn-block { width: 100%; }
+.btn-xl { min-height: 64px; font-size: 20px; border-radius: 14px; }
+.btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+.linkbtn { background: none; border: 0; color: var(--focus); font-weight: 700; padding: 8px 4px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
+
+.banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 12px; font-size: 16px; }
+.banner svg { width: 24px; height: 24px; flex: none; margin-top: 1px; }
+.banner-warn { background: #fff4d6; color: #4d3800; border: 1px solid #ecd28a; }
+.banner-error { background: var(--danger-bg); color: #5c120d; border: 1px solid #f0b8b4; }
+.banner-ok { background: var(--st-ready-bg); color: #10391a; border: 1px solid #a9d6b2; }
+
+/* ---------- status + material tags ---------- */
+.status { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 16px; padding: 6px 12px 6px 9px; border-radius: 999px; border: 2px solid currentColor; white-space: nowrap; }
+.status svg { width: 19px; height: 19px; }
+.status.pending { color: var(--st-pending); background: var(--st-pending-bg); }
+.status.in_progress { color: var(--st-progress); background: var(--st-progress-bg); }
+.status.ready { color: var(--st-ready); background: var(--st-ready-bg); }
+.status.collected { color: var(--st-collected); background: var(--st-collected-bg); }
+
+.mat { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 5px 11px 5px 7px; border-radius: 8px; font-size: 16px; }
+.mat svg { width: 22px; height: 22px; }
+.mat-plywood { color: var(--mat-plywood); background: var(--mat-plywood-bg); }
+.mat-mdf { color: var(--mat-mdf); background: var(--mat-mdf-bg); }
+.mat-timber { color: var(--mat-timber); background: var(--mat-timber-bg); }
+.mat-veneer { color: var(--mat-veneer); background: var(--mat-veneer-bg); }
+.mat-other { color: var(--mat-other); background: var(--mat-other-bg); }
+.demo-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; background: #f4c542; color: #2a1d00; border-radius: 5px; padding: 2px 7px; }
+
+/* ---------- home ---------- */
+.home-hero { padding-block: 8px 4px; }
+.home-actions { display: grid; gap: 14px; margin-top: 22px; }
+.home-btn { display: flex; align-items: center; gap: 16px; text-align: left; padding: 18px; min-height: 92px; border-radius: 16px; border: 2px solid var(--line); background: #fff; color: var(--ink); }
+.home-btn .icon { width: 56px; height: 56px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--bg); color: var(--navy); }
+.home-btn .icon svg { width: 30px; height: 30px; }
+.home-btn strong { display: block; font-family: var(--display); font-size: 27px; line-height: 1.05; color: var(--navy); }
+.home-btn span.sub { display: block; color: var(--muted); font-size: 16px; margin-top: 2px; }
+.home-btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.home-btn.primary strong { color: #fff; }
+.home-btn.primary span.sub { color: #c8d6e5; }
+.home-btn.primary .icon { background: rgba(255,255,255,0.12); color: #fff; }
+.home-btn .chev { margin-left: auto; width: 26px; height: 26px; flex: none; opacity: 0.7; }
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.steps li { display: flex; gap: 12px; align-items: flex-start; }
+.steps .n { width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 700; display: grid; place-items: center; flex: none; }
+
+/* ---------- order form ---------- */
+.progress { display: flex; gap: 6px; margin-bottom: 6px; }
+.progress span { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.progress span.on { background: var(--navy); }
+.step-label { font-size: 15px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label, .field .label { font-weight: 700; font-size: 18px; }
+.field .hint { font-size: 15px; color: var(--muted); margin: 0; }
+.opt { font-weight: 400; color: var(--muted); font-size: 15px; }
+.input, .select, .textarea {
+  width: 100%; min-height: 56px; border: 2px solid var(--line); border-radius: 12px; background: #fff;
+  padding: 12px 14px; font-size: 20px; /* 16px+ stops iPhone zooming in */
+}
+.textarea { min-height: 110px; font-size: 18px; resize: vertical; }
+.select { appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--navy) 50%), linear-gradient(135deg, var(--navy) 50%, transparent 50%); background-position: calc(100% - 22px) 50%, calc(100% - 15px) 50%; background-size: 7px 7px; background-repeat: no-repeat; padding-right: 44px; }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 3px rgba(31,127,196,0.25); }
+.invalid .input, .invalid .select, .invalid .textarea { border-color: var(--danger); }
+.error { color: var(--danger); font-weight: 700; font-size: 16px; margin: 0; display: flex; gap: 6px; align-items: flex-start; }
+.error svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.mm { position: relative; }
+.mm .input { padding-right: 58px; }
+.mm .unit { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--muted); pointer-events: none; }
+.dims { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 44px; min-width: 56px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--line); background: #fff; font-weight: 700; font-size: 17px; }
+.chip[aria-pressed="true"] { border-color: var(--navy); background: var(--navy); color: #fff; }
+.qty { display: flex; align-items: center; gap: 10px; }
+.qty .input { width: 110px; text-align: center; font-weight: 700; }
+.qty .btn { width: 60px; height: 56px; min-height: 56px; padding: 0; font-size: 28px; }
+.saved-who { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; }
+
+.mat-grid { display: grid; gap: 12px; }
+.mat-card { display: flex; align-items: center; gap: 16px; min-height: 84px; padding: 14px 16px; border-radius: 14px; border: 3px solid transparent; text-align: left; font-family: var(--display); font-weight: 700; font-size: 28px; }
+.mat-card .mi { width: 54px; height: 54px; border-radius: 12px; background: #fff; display: grid; place-items: center; flex: none; }
+.mat-card .mi svg { width: 34px; height: 34px; }
+.mat-card small { display: block; font-family: var(--body); font-weight: 400; font-size: 15px; color: var(--ink); opacity: 0.85; margin-top: 2px; }
+.mat-card[aria-pressed="true"] { border-color: currentColor; box-shadow: 0 0 0 3px #fff inset; }
+.mat-card.plywood { background: var(--mat-plywood-bg); color: var(--mat-plywood); }
+.mat-card.mdf { background: var(--mat-mdf-bg); color: var(--mat-mdf); }
+.mat-card.timber { background: var(--mat-timber-bg); color: var(--mat-timber); }
+.mat-card.veneer { background: var(--mat-veneer-bg); color: var(--mat-veneer); }
+.mat-card.other { background: var(--mat-other-bg); color: var(--mat-other); }
+.mat-card .tick { margin-left: auto; width: 30px; height: 30px; }
+
+.review dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.review .r { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.review .r:last-child { border-bottom: 0; }
+.review dt { color: var(--muted); }
+.review dd { margin: 0; font-weight: 700; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.big-size { font-family: var(--display); font-size: 34px; color: var(--navy); line-height: 1.1; }
+
+.success-head { background: var(--st-ready); color: #fff; border-radius: var(--radius) var(--radius) 0 0; padding: 22px 18px; text-align: center; }
+.success-head svg { width: 54px; height: 54px; }
+.success-head h2 { color: #fff; font-size: 32px; margin-top: 6px; }
+.ref-big { font-family: var(--mono); font-size: 38px; font-weight: 700; letter-spacing: 0.02em; color: var(--navy); }
+
+.sticky-actions { position: sticky; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); padding-top: 10px; background: linear-gradient(to bottom, rgba(238,241,244,0), var(--bg) 30%); }
+
+/* ---------- order lists ---------- */
+.order-card { padding: 16px; display: flex; flex-direction: column; gap: 10px; text-align: left; width: 100%; border: 1px solid var(--line-soft); }
+button.order-card { background: #fff; border-radius: var(--radius); }
+.order-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.ref { font-family: var(--mono); font-weight: 700; font-size: 21px; color: var(--navy); }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 16px; }
+.searchbar { display: flex; gap: 10px; }
+.searchbar .input { flex: 1; min-width: 0; }
+
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: flex; gap: 14px; position: relative; padding-bottom: 22px; }
+.timeline li:last-child { padding-bottom: 0; }
+.timeline li::before { content: ''; position: absolute; left: 17px; top: 38px; bottom: 2px; width: 3px; background: var(--line); }
+.timeline li:last-child::before { display: none; }
+.timeline li.done::before { background: var(--st-ready); }
+.timeline .dot { width: 37px; height: 37px; border-radius: 50%; border: 3px solid var(--line); background: #fff; display: grid; place-items: center; flex: none; position: relative; z-index: 1; color: var(--muted); }
+.timeline .dot svg { width: 20px; height: 20px; }
+.timeline li.done .dot { background: var(--st-ready); border-color: var(--st-ready); color: #fff; }
+.timeline li.current .dot { border-color: var(--navy); color: var(--navy); }
+.timeline .t { font-weight: 700; font-size: 18px; }
+.timeline li.todo .t { color: var(--muted); font-weight: 400; }
+
+/* ---------- woodmill ---------- */
+.mill-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.count { padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line-soft); background: #fff; text-align: left; display: flex; flex-direction: column; gap: 2px; min-height: 76px; }
+.count .n { font-family: var(--display); font-size: 36px; line-height: 1; color: var(--navy); }
+.count .l { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; }
+.count .l svg { width: 18px; height: 18px; }
+.count[aria-pressed="true"] { border-color: var(--navy); }
+.filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.filters .chip { white-space: nowrap; flex: none; }
+.mill-grid { display: grid; gap: 14px; }
+.job { background: #fff; border-radius: var(--radius); border: 1px solid var(--line-soft); border-left: 10px solid var(--mat-other); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.job.plywood { border-left-color: var(--mat-plywood); }
+.job.mdf { border-left-color: var(--mat-mdf); }
+.job.timber { border-left-color: var(--mat-timber); }
+.job.veneer { border-left-color: var(--mat-veneer); }
+.job.fresh { box-shadow: 0 0 0 3px var(--focus); }
+.job .spec { font-weight: 700; font-size: 19px; overflow-wrap: anywhere; }
+.sizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; background: var(--bg); border-radius: 10px; padding: 10px; }
+.sizes div { min-width: 0; }
+.sizes .k { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.sizes .v { font-family: var(--display); font-size: 27px; font-weight: 700; color: var(--navy); line-height: 1.1; white-space: nowrap; }
+.sizes .v small { font-family: var(--body); font-size: 14px; color: var(--muted); font-weight: 400; }
+.notes { background: #fff8e1; border: 1px solid #efdc9f; border-radius: 10px; padding: 10px 12px; font-size: 16px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.who { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; font-size: 16px; }
+.who .k { color: var(--muted); font-size: 14px; }
+.who .v { font-weight: 700; overflow-wrap: anywhere; }
+.job-actions { display: flex; flex-direction: column; gap: 6px; }
+.btn-next.in_progress { background: #8a4f00; color: #fff; }
+.btn-next.ready { background: var(--st-ready); color: #fff; }
+.btn-next.collected { background: var(--st-collected); color: #fff; }
+
+.empty { text-align: center; padding: 34px 18px; }
+.empty svg { width: 44px; height: 44px; color: var(--muted); }
+
+.qr-box { background: #fff; border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.qr-box svg.qr { width: min(280px, 100%); height: auto; }
+.url { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; background: var(--bg); padding: 8px 10px; border-radius: 8px; width: 100%; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 40; background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 700; max-width: calc(100% - 32px); box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+
+.skeleton { height: 120px; border-radius: var(--radius); background: linear-gradient(90deg, #e4e9ee, #f2f5f7, #e4e9ee); background-size: 200% 100%; animation: sk 1.4s infinite linear; }
+@keyframes sk { to { background-position: -200% 0; } }
+
+@media (max-width: 479px) {
+  .sizes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 720px) {
+  .page-title { font-size: 42px; }
+  .home-actions { grid-template-columns: 1fr; }
+  .mat-grid { grid-template-columns: 1fr 1fr; }
+  .counts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1000px) {
+  .mill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1500px) {
+  .mill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 360px) {
+  body { font-size: 16px; }
+  .brand-name { font-size: 20px; }
+  .ref-big { font-size: 30px; }
+  .mat-card { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+</style>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="brand" data-go="home" aria-label="Woodmill Orders home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="26" height="26"><rect x="4" y="7" width="24" height="4" rx="1" fill="#1d5fb8"/><rect x="4" y="14" width="24" height="4" rx="1" fill="#10243a"/><rect x="4" y="21" width="24" height="4" rx="1" fill="#b45f06"/></svg>
+      </span>
+      <span class="brand-name">Woodmill Orders</span>
+    </button>
+    <span class="demo-pill">DEMO</span>
+  </div>
+</header>
+<div class="notice">Concept demonstration with made-up data. Not an official company system.</div>
+
+<main id="app" aria-live="polite">
+  <div class="narrow stack">
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+  </div>
+</main>
+
+<nav class="tabbar" aria-label="Sections">
+  <div class="tabbar-inner" id="tabs"></div>
+</nav>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ======================================================================
+     SETTINGS — change these lists to add materials, departments or sizes.
+     ====================================================================== */
+  // The address of this page. The QR code points here (opening the order form).
+  var APP_URL = 'https://claude.ai/artifact/Dr7RVM9SrFytkjcFEHijo5';
+
+  var MATERIALS = [
+    { id: 'plywood', name: 'Plywood', hint: 'Birch, marine, poplar', specs: ['Birch plywood', 'Marine plywood', 'Poplar plywood (lightweight)', 'Hardwood-faced plywood'], thick: [6, 9, 12, 15, 18, 24] },
+    { id: 'mdf', name: 'MDF', hint: 'Standard, moisture-resistant', specs: ['Standard MDF', 'Moisture-resistant MDF', 'Fire-retardant MDF'], thick: [6, 9, 12, 18, 25] },
+    { id: 'timber', name: 'Solid Timber', hint: 'Oak, ash, sapele, teak', specs: ['Oak', 'Ash', 'Sapele', 'Teak', 'Redwood (softwood)'], thick: [20, 27, 32, 45] },
+    { id: 'veneer', name: 'Veneered Board', hint: 'Oak, walnut, teak faced', specs: ['Oak-veneered board', 'Walnut-veneered board', 'Teak-faced plywood'], thick: [6, 12, 18] },
+    { id: 'other', name: 'Other Materials', hint: 'Laminate, foam core, acrylic…', specs: [], thick: [] }
+  ];
+
+  var DEPARTMENTS = ['Shed 1', 'Shed 2', 'Shed 3', 'Shed 4', 'Joinery Shop', 'Deck Fit-Out', 'Interior Fit-Out', 'Prototype Workshop'];
+
+  // Placeholder clock-number rule (not a real company format).
+  var CLOCK_MIN = 4, CLOCK_MAX = 8;
+  var LIMITS = { thick: [0.5, 200], len: [1, 6000], wid: [1, 3000], qty: [1, 500], notes: 500 };
+
+  var STATUSES = [
+    { id: 'pending', name: 'Pending', help: 'The woodmill has your order.' },
+    { id: 'in_progress', name: 'In Progress', help: 'Your material is being cut.' },
+    { id: 'ready', name: 'Ready for Collection', help: 'Collect it from the woodmill.' },
+    { id: 'collected', name: 'Completed', help: 'Collected from the woodmill. Order complete.' }
+  ];
+  var NEXT_ACTION = { pending: ['in_progress', 'Start Cutting'], in_progress: ['ready', 'Mark Ready for Collection'], ready: ['collected', 'Mark Completed (collected)'] };
+
+  /* ====================================================================== */
+
+  var ICONS = {
+    home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
+    order: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M12 10v6M9 13h6"/>',
+    list: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/>',
+    mill: '<path d="M3 21V11l5 3V11l5 3V8l8 4v9z"/><path d="M7 18h2M12 18h2M17 18h2"/>',
+    chev: '<path d="m9 6 6 6-6 6"/>',
+    back: '<path d="m15 6-6 6 6 6"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    checkCircle: '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    hammer: '<path d="m14 6 4 4"/><path d="M12.5 7.5 16 4l4 4-3.5 3.5"/><path d="m13 11-8.5 8.5a1.5 1.5 0 0 1-2-2L11 9"/>',
+    box: '<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/>',
+    boxCheck: '<path d="M3 7.5 12 3l9 4.5V12"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9M3 7.5v9l9 4.5"/><path d="m15 18 2 2 4-4"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.5"/>',
+    qr: '<rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM18 14h2M14 18v2"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    minus: '<path d="M5 12h14"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+    download: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    // material pictograms
+    plywood: '<path d="M3 8h18M3 12h18M3 16h18"/><rect x="3" y="5" width="18" height="14" rx="1.5"/>',
+    mdf: '<rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M6 10h.01M10 13h.01M15 10h.01M18 14h.01M8 15h.01M13 11h.01" stroke-width="2.6"/>',
+    timber: '<ellipse cx="7.5" cy="12" rx="4.5" ry="6"/><ellipse cx="7.5" cy="12" rx="2" ry="3"/><path d="M7.5 6H19a2 6 0 0 1 0 12H7.5"/>',
+    veneer: '<rect x="3" y="9" width="18" height="9" rx="1.5"/><path d="M3 6.5h18" stroke-width="2.6"/>',
+    other: '<circle cx="7.5" cy="8" r="3.5"/><rect x="13" y="4.5" width="7" height="7" rx="1"/><path d="M4 20l4-6 4 6z"/><path d="M14 15h6v5h-6z"/>'
+  };
+  var STATUS_ICON = { pending: 'clock', in_progress: 'hammer', ready: 'boxCheck', collected: 'checkCircle' };
+
+  function icon(name, extra) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' + (extra || '') + '>' + (ICONS[name] || '') + '</svg>';
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+  function mat(id) { return MATERIALS.filter(function (m) { return m.id === id; })[0] || MATERIALS[MATERIALS.length - 1]; }
+  function statusInfo(id) { return STATUSES.filter(function (s) { return s.id === id; })[0] || STATUSES[0]; }
+  function statusPill(id) { var s = statusInfo(id); return '<span class="status ' + s.id + '">' + icon(STATUS_ICON[s.id]) + esc(s.name) + '</span>'; }
+  function matTag(id) { var m = mat(id); return '<span class="mat mat-' + m.id + '">' + icon(m.id) + esc(m.name) + '</span>'; }
+
+  var dateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric' });
+  var timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  function fDate(iso) { return iso ? dateFmt.format(new Date(iso)) : '—'; }
+  function fTime(iso) { return iso ? timeFmt.format(new Date(iso)) : '—'; }
+  function fWhen(iso) { return fDate(iso) + ' at ' + fTime(iso); }
+  function ago(iso) {
+    var m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + ' min ago';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+    var d = Math.floor(h / 24);
+    return d === 1 ? 'yesterday' : d + ' days ago';
+  }
+  function num(v) { return Number(String(v).replace(',', '.')); }
+  function mmText(o) { return o.thick ? o.thick + ' mm thick' : 'thickness not given'; }
+
+  // Per-device conveniences only (never the order data).
+  function remember(key, val) { try { localStorage.setItem('wo.' + key, JSON.stringify(val)); } catch (e) { /* storage unavailable */ } }
+  function recall(key) { try { var v = localStorage.getItem('wo.' + key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+
+  var toastTimer;
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 3200);
+  }
+
+  /* ---------------------------- state ---------------------------------- */
+  var VIEWS = ['home', 'order', 'mine', 'mill', 'qr'];
+  var hash = (location.hash || '').replace('#', '');
+  var savedWho = recall('who');
+
+  var S = {
+    view: VIEWS.indexOf(hash) >= 0 ? hash : 'home',
+    step: 1,
+    editWho: !savedWho,
+    draft: emptyDraft(savedWho),
+    errors: {},
+    pendingRef: null,
+    submitting: false,
+    submitError: null,
+    submitted: null,
+    db: undefined,          // undefined = connecting, null = unavailable
+    orders: [],
+    ordersState: 'loading', // loading | ready | error | unavailable
+    mineQuery: recall('lastSearch') || (savedWho ? savedWho.clock : ''),
+    detailRef: null,
+    millFilter: 'active',
+    operator: false,
+    busy: null,
+    resetArmed: false,
+    fresh: {}
+  };
+  try { S.operator = sessionStorage.getItem('wo.operator') === '1'; } catch (e) { /* ignore */ }
+
+  function emptyDraft(who) {
+    return { clock: who ? who.clock : '', name: who ? who.name : '', dept: who ? who.dept : '', project: '', cat: '', spec: '', specOther: '', thick: '', len: '', wid: '', qty: '', notes: '' };
+  }
+
+  /* --------------------------- database -------------------------------- */
+  // The database hands out READ-ONLY (frozen) documents. Copy each one into a plain object
+  // before adding fields; writing to the original throws and stops the order list loading.
+  function toOrder(d) { return Object.assign({}, d.data(), { id: d.id }); }
+  function logError(where, e) { try { console.error('[woodmill] ' + where, e && e.code, e && e.message, e); } catch (x) { /* ignore */ } }
+
+  function applyOrders(list) {
+    if (seenRefs) {
+      list.forEach(function (o) { if (!seenRefs[o.id] && o.status === 'pending') S.fresh[o.id] = Date.now(); });
+      if (S.view === 'mill') {
+        var newOnes = list.filter(function (o) { return !seenRefs[o.id]; });
+        if (newOnes.length) toast('New order received: ' + newOnes[0].ref);
+      }
+    }
+    seenRefs = {}; list.forEach(function (o) { seenRefs[o.id] = true; });
+    S.orders = list; S.ordersState = 'ready';
+    renderKeepFocus();
+  }
+  function ordersQuery() { return S.db.collection('orders').orderBy('createdAt', 'desc').limit(500); }
+
+  // Live updates, with an automatic re-subscribe if the connection drops.
+  function subscribe() {
+    ordersQuery().onSnapshot(function (snap) {
+      try { applyOrders(snap.docs.map(toOrder)); }
+      catch (e) { logError('could not show orders', e); S.ordersState = 'error'; render(); }
+    }, function (e) {
+      logError('live order updates stopped', e);
+      S.ordersState = S.orders.length ? 'ready' : 'error'; render();
+      if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) setTimeout(subscribe, 3000);
+    });
+  }
+  // Backstop: re-read every 10 s while the order list is on screen, in case live updates fall back to slow polling.
+  function pollOrders() {
+    if (S.db && !document.hidden && (S.view === 'mine' || S.view === 'mill')) {
+      ordersQuery().get().then(function (snap) {
+        var list = snap.docs.map(toOrder);
+        if (JSON.stringify(list) !== JSON.stringify(S.orders)) applyOrders(list);
+      }, function (e) { logError('background refresh failed', e); });
+    }
+  }
+  setInterval(pollOrders, 10000);
+
+  var seenRefs = null;
+  function connect() {
+    if (!window.claude || typeof window.claude.use !== 'function') { S.db = null; S.ordersState = 'unavailable'; render(); return; }
+    window.claude.use('db').then(function (db) {
+      S.db = db;
+      if (!db) { S.ordersState = 'unavailable'; render(); return; }
+      subscribe();
+    }, function (e) { logError('order storage unavailable', e); S.db = null; S.ordersState = 'unavailable'; render(); });
+  }
+
+  function withRetry(fn) {
+    return fn().catch(function (e) {
+      if (e && e.code === 'unavailable') {
+        return new Promise(function (r) { setTimeout(r, 700 + Math.random() * 800); }).then(fn);
+      }
+      throw e;
+    });
+  }
+
+  function newRef() { return 'WM-' + String(Math.floor(10000 + Math.random() * 90000)); }
+
+  /* ---------------------------- views ---------------------------------- */
+  function renderTabs() {
+    var tabs = [['home', 'Home', 'home'], ['order', 'Order', 'order'], ['mine', 'My Orders', 'list'], ['mill', 'Woodmill', 'mill']];
+    document.getElementById('tabs').innerHTML = tabs.map(function (t) {
+      var on = S.view === t[0] || (t[0] === 'home' && S.view === 'qr');
+      return '<button class="tab" data-go="' + t[0] + '"' + (on ? ' aria-current="page"' : '') + '>' + icon(t[2]) + '<span>' + t[1] + '</span></button>';
+    }).join('');
+  }
+
+  function dbBanner() {
+    if (S.db === null) {
+      return '<div class="banner banner-warn">' + icon('alert') + '<div><strong>Orders cannot be loaded here.</strong> Open this page from its claude.ai link while signed in, so orders are saved and shared between devices.</div></div>';
+    }
+    if (S.ordersState === 'error') {
+      return '<div class="banner banner-error">' + icon('alert') + '<div><strong>Orders could not be loaded.</strong> Check your signal, then pull down or tap Refresh.</div></div>';
+    }
+    return '';
+  }
+
+  function viewHome() {
+    return '<div class="narrow stack">' +
+      '<div class="home-hero"><p class="eyebrow">Digital woodmill ordering</p>' +
+      '<h1 class="page-title">Order cut timber and sheet material</h1>' +
+      '<p class="lead">No paper form. Order on your phone and see when it is ready.</p></div>' +
+      dbBanner() +
+      '<div class="home-actions">' +
+        homeBtn('order', 'order', 'Place an Order', 'Takes about a minute', true) +
+        homeBtn('mine', 'list', 'My Orders', 'Check if your order is ready') +
+        homeBtn('mill', 'mill', 'Woodmill Dashboard', 'For the woodmill operator') +
+      '</div>' +
+      '<section class="card" style="padding:18px"><h2 style="font-size:26px">How it works</h2>' +
+        '<ol class="steps" style="margin-top:12px">' +
+          '<li><span class="n">1</span><span>Scan the QR code in your workshop.</span></li>' +
+          '<li><span class="n">2</span><span>Choose the material and enter the sizes.</span></li>' +
+          '<li><span class="n">3</span><span>The woodmill sees your order and cuts it.</span></li>' +
+          '<li><span class="n">4</span><span>Check “My Orders” to see when it is ready to collect.</span></li>' +
+        '</ol></section>' +
+      '<button class="btn btn-quiet btn-block" data-go="qr">' + icon('qr') + 'Show QR code for this page</button>' +
+      '</div>';
+  }
+  function homeBtn(go, ic, title, sub, primary) {
+    return '<button class="home-btn' + (primary ? ' primary' : '') + '" data-go="' + go + '"><span class="icon">' + icon(ic) + '</span><span><strong>' + title + '</strong><span class="sub">' + sub + '</span></span>' + icon('chev', ' class="chev"') + '</button>';
+  }
+
+  /* ----- order form ----- */
+  function progress(step) {
+    var h = '<div class="progress" aria-hidden="true">';
+    for (var i = 1; i <= 4; i++) h += '<span' + (i <= step ? ' class="on"' : '') + '></span>';
+    return h + '</div><p class="step-label">Step ' + step + ' of 4</p>';
+  }
+  function err(key) { return S.errors[key] ? '<p class="error" id="err-' + key + '">' + icon('alert') + esc(S.errors[key]) + '</p>' : ''; }
+  function inv(key) { return S.errors[key] ? ' invalid' : ''; }
+  function described(key) { return S.errors[key] ? ' aria-invalid="true" aria-describedby="err-' + key + '"' : ''; }
+
+  function viewOrder() {
+    if (S.submitted) return viewSuccess();
+    var d = S.draft, body = '';
+    if (S.step === 1) {
+      body = progress(1) + '<h1 class="page-title">Who is ordering?</h1>';
+      if (!S.editWho && d.clock && d.dept) {
+        body += '<div class="card saved-who"><div><div class="muted small">Ordering as</div><div style="font-weight:700;font-size:19px">' + esc(d.name || 'Clock ' + d.clock) + '</div><div class="muted small">Clock ' + esc(d.clock) + ' · ' + esc(d.dept) + '</div></div><button class="linkbtn" data-act="edit-who">Change</button></div>' +
+          '<div class="field"><label for="f-project">Boat or project <span class="opt">(optional)</span></label><input id="f-project" class="input" data-f="project" value="' + esc(d.project) + '" maxlength="40" autocomplete="off" placeholder="e.g. Hull 21"></div>';
+      } else {
+        body += '<div class="field' + inv('clock') + '"><label for="f-clock">Clock number</label><input id="f-clock" class="input tabular" data-f="clock" value="' + esc(d.clock) + '" inputmode="numeric" pattern="[0-9]*" maxlength="' + CLOCK_MAX + '" autocomplete="off"' + described('clock') + '><p class="hint">Use a made-up number for this demo, e.g. 123456.</p>' + err('clock') + '</div>' +
+          '<div class="field"><label for="f-name">Your name <span class="opt">(optional)</span></label><input id="f-name" class="input" data-f="name" value="' + esc(d.name) + '" maxlength="60" autocomplete="off" autocapitalize="words"></div>' +
+          '<div class="field' + inv('dept') + '"><label for="f-dept">Department, shed or line</label><select id="f-dept" class="select" data-f="dept"' + described('dept') + '><option value="">Choose…</option>' +
+            DEPARTMENTS.map(function (x) { return '<option' + (x === d.dept ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>' + err('dept') + '</div>' +
+          '<div class="field"><label for="f-project">Boat or project <span class="opt">(optional)</span></label><input id="f-project" class="input" data-f="project" value="' + esc(d.project) + '" maxlength="40" autocomplete="off" placeholder="e.g. Hull 21"></div>';
+      }
+      body += '<div class="sticky-actions"><button class="btn btn-primary btn-xl btn-block" data-act="step1">Next: choose material' + icon('chev') + '</button></div>';
+    } else if (S.step === 2) {
+      body = progress(2) + '<h1 class="page-title">What material?</h1>' + err('cat') +
+        '<div class="mat-grid" role="group" aria-label="Material">' + MATERIALS.map(function (m) {
+          var on = d.cat === m.id;
+          return '<button class="mat-card ' + m.id + '" data-act="pick-mat" data-v="' + m.id + '" aria-pressed="' + on + '"><span class="mi">' + icon(m.id) + '</span><span>' + esc(m.name) + '<small>' + esc(m.hint) + '</small></span>' + (on ? icon('checkCircle', ' class="tick"') : '') + '</button>';
+        }).join('') + '</div>' +
+        '<button class="btn btn-quiet btn-block" data-act="back">' + icon('back') + 'Back</button>';
+    } else if (S.step === 3) {
+      var m = mat(d.cat);
+      body = progress(3) + '<p style="margin:0">' + matTag(m.id) + '</p><h1 class="page-title">Size and quantity</h1>';
+      if (m.specs.length) {
+        var isOther = d.spec === '__other';
+        body += '<div class="field' + inv('spec') + '"><label for="f-spec">Type of ' + esc(m.name.toLowerCase()) + '</label><select id="f-spec" class="select" data-f="spec"' + described('spec') + '><option value="">Choose…</option>' +
+          m.specs.map(function (x) { return '<option' + (x === d.spec ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') +
+          '<option value="__other"' + (isOther ? ' selected' : '') + '>Not listed – I will type it</option></select>' + err('spec') +
+          (isOther ? '<input id="f-specOther" class="input" data-f="specOther" value="' + esc(d.specOther) + '" maxlength="80" placeholder="Describe the material" aria-label="Describe the material">' + err('specOther') : '') + '</div>';
+      } else {
+        body += '<div class="field' + inv('specOther') + '"><label for="f-specOther">What material?</label><input id="f-specOther" class="input" data-f="specOther" value="' + esc(d.specOther) + '" maxlength="80" placeholder="e.g. White laminate"' + described('specOther') + '>' + err('specOther') + '</div>';
+      }
+      body += '<div class="field' + inv('thick') + '"><label for="f-thick">Thickness' + (m.id === 'other' ? ' <span class="opt">(optional)</span>' : '') + '</label>' +
+        '<div class="mm"><input id="f-thick" class="input tabular" data-f="thick" value="' + esc(d.thick) + '" inputmode="decimal" autocomplete="off"' + described('thick') + '><span class="unit">mm</span></div>' +
+        (m.thick.length ? '<div class="chips" aria-label="Common thicknesses">' + m.thick.map(function (t) { return '<button class="chip" data-act="thick" data-v="' + t + '" aria-pressed="' + (String(t) === String(d.thick)) + '">' + t + ' mm</button>'; }).join('') + '</div>' : '') + err('thick') + '</div>' +
+        '<div class="dims">' +
+          '<div class="field' + inv('len') + '"><label for="f-len">Length</label><div class="mm"><input id="f-len" class="input tabular" data-f="len" value="' + esc(d.len) + '" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' + described('len') + '><span class="unit">mm</span></div>' + err('len') + '</div>' +
+          '<div class="field' + inv('wid') + '"><label for="f-wid">Width</label><div class="mm"><input id="f-wid" class="input tabular" data-f="wid" value="' + esc(d.wid) + '" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' + described('wid') + '><span class="unit">mm</span></div>' + err('wid') + '</div>' +
+        '</div>' +
+        '<div class="field' + inv('qty') + '"><label for="f-qty">How many pieces?</label><div class="qty">' +
+          '<button class="btn btn-secondary" data-act="qty" data-v="-1" aria-label="One fewer">' + icon('minus') + '</button>' +
+          '<input id="f-qty" class="input tabular" data-f="qty" value="' + esc(d.qty) + '" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' + described('qty') + '>' +
+          '<button class="btn btn-secondary" data-act="qty" data-v="1" aria-label="One more">' + icon('plus') + '</button></div>' + err('qty') + '</div>' +
+        '<div class="field' + inv('notes') + '"><label for="f-notes">Cutting instructions <span class="opt">(optional)</span></label><textarea id="f-notes" class="textarea" data-f="notes" maxlength="' + LIMITS.notes + '" placeholder="e.g. Grain lengthways. Label each piece.">' + esc(d.notes) + '</textarea><p class="hint" id="notes-count">' + d.notes.length + ' of ' + LIMITS.notes + ' characters</p>' + err('notes') + '</div>' +
+        '<div class="sticky-actions stack" style="gap:8px"><button class="btn btn-primary btn-xl btn-block" data-act="step3">Next: check order' + icon('chev') + '</button></div>' +
+        '<button class="btn btn-quiet btn-block" data-act="back">' + icon('back') + 'Back</button>';
+    } else if (S.step === 4) {
+      body = progress(4) + '<h1 class="page-title">Check your order</h1><p class="lead" style="margin-top:-6px">Make sure the sizes are right before you send it.</p>' +
+        '<section class="card review" style="padding:6px 16px"><dl>' +
+          row('Material', matTag(d.cat), true) +
+          row('Type', esc(specName(d))) +
+          '<div class="r" style="display:block"><dt>Size</dt><dd style="text-align:left;margin-top:4px"><div class="big-size tabular">' + esc(d.len) + ' × ' + esc(d.wid) + ' mm</div><div>' + esc(d.thick ? d.thick + ' mm thick' : 'Thickness not given') + '</div></dd></div>' +
+          row('Quantity', '<span class="big-size tabular">' + esc(d.qty) + '</span>', true) +
+          row('Instructions', esc(d.notes || 'None')) +
+          row('Clock number', esc(d.clock)) +
+          (d.name ? row('Name', esc(d.name)) : '') +
+          row('Department', esc(d.dept)) +
+          (d.project ? row('Boat or project', esc(d.project)) : '') +
+        '</dl></section>' +
+        (S.submitError ? '<div class="banner banner-error">' + icon('alert') + '<div>' + esc(S.submitError) + '</div></div>' : '') +
+        (S.db === null ? dbBanner() : '') +
+        '<div class="sticky-actions stack" style="gap:8px"><button class="btn btn-primary btn-xl btn-block" data-act="submit"' + (S.submitting || !S.db ? ' disabled' : '') + '>' + (S.submitting ? 'Sending…' : icon('check') + 'Submit Order') + '</button></div>' +
+        '<button class="btn btn-quiet btn-block" data-act="back"' + (S.submitting ? ' disabled' : '') + '>' + icon('back') + 'Change something</button>';
+    }
+    return '<div class="narrow stack">' + (S.step < 4 ? dbBanner() : '') + body + '</div>';
+  }
+  function row(k, v, raw) { return '<div class="r"><dt>' + k + '</dt><dd>' + (raw ? v : v) + '</dd></div>'; }
+  function specName(d) { return d.spec && d.spec !== '__other' ? d.spec : d.specOther; }
+
+  function viewSuccess() {
+    var o = S.submitted;
+    return '<div class="narrow stack"><section class="card">' +
+      '<div class="success-head">' + icon('checkCircle') + '<h2>Order Submitted Successfully</h2></div>' +
+      '<div style="padding:18px;display:flex;flex-direction:column;gap:14px;text-align:center">' +
+        '<div><p class="eyebrow">Your order reference</p><div class="ref-big" id="done-ref">' + esc(o.ref) + '</div></div>' +
+        '<div class="row" style="justify-content:center;gap:10px 22px"><span><span class="muted">Date</span> <strong class="tabular">' + fDate(o.createdAt) + '</strong></span><span><span class="muted">Time</span> <strong class="tabular">' + fTime(o.createdAt) + '</strong></span></div>' +
+        '<div>' + statusPill('pending') + '</div>' +
+        '<p class="muted small" style="margin:0">The woodmill can see your order now. Check “My Orders” to see when it is ready.</p>' +
+        '<button class="btn btn-primary btn-xl btn-block" data-act="view-mine" data-v="' + esc(o.ref) + '">View My Order</button>' +
+        '<button class="btn btn-secondary btn-block" data-act="another">Place another order</button>' +
+      '</div></section></div>';
+  }
+
+  /* ----- my orders ----- */
+  function findMine(q) {
+    q = String(q || '').trim().toUpperCase();
+    if (!q) return [];
+    var asRef = q.indexOf('WM-') === 0 ? q : (/^\d{5}$/.test(q) ? 'WM-' + q : null);
+    return S.orders.filter(function (o) { return String(o.clock) === q || o.ref === q || (asRef && o.ref === asRef); })
+      .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; });
+  }
+
+  function viewMine() {
+    if (S.detailRef) return viewDetail();
+    var q = S.mineQuery;
+    var res = findMine(q);
+    var list;
+    if (S.ordersState === 'loading') list = '<div class="skeleton"></div>';
+    else if (!q) list = '<div class="card empty">' + icon('search') + '<p>Enter your clock number to see your orders.</p></div>';
+    else if (!res.length && /^WM-/i.test(q)) list = '<div class="card empty">' + icon('list') + '<p><strong>No order found with reference ' + esc(q) + '.</strong></p><p class="muted small">Check the reference, or search with your clock number.</p></div>';
+    else if (!res.length) list = '<div class="card empty">' + icon('list') + '<p><strong>You haven\'t placed any orders yet.</strong></p><p class="muted small">No orders for clock number ' + esc(q) + '.</p><button class="btn btn-secondary" data-go="order">Place an Order</button></div>';
+    else list = '<p class="muted small" style="margin:0">' + (/^WM-/i.test(q) ? 'Order ' + esc(q) : 'Orders for clock number ' + esc(q)) + ' · newest first · updates automatically</p>' + res.map(function (o) {
+      return '<button class="order-card" data-act="detail" data-ref="' + esc(o.ref) + '" data-v="' + esc(o.id) + '">' +
+        '<div class="order-top"><span class="ref">' + esc(o.ref) + '</span>' + statusPill(o.status) + '</div>' +
+        '<div class="row" style="gap:8px">' + matTag(o.cat) + (o.demo ? '<span class="demo-tag">DEMO</span>' : '') + '</div>' +
+        '<div style="font-weight:700;overflow-wrap:anywhere">' + esc(o.spec) + ' · <span class="tabular">' + esc(o.qty) + ' × ' + esc(o.len) + ' × ' + esc(o.wid) + ' mm</span></div>' +
+        '<div class="meta tabular"><span>Sent ' + fWhen(o.createdAt) + '</span></div></button>';
+    }).join('');
+    return '<div class="narrow stack"><div><p class="eyebrow">Track</p><h1 class="page-title">My Orders</h1></div>' + dbBanner() +
+      '<form class="searchbar" data-form="mine" role="search"><label class="sr" for="f-mine" style="position:absolute;left:-9999px">Clock number or order reference</label>' +
+      '<input id="f-mine" class="input tabular" value="' + esc(S.mineInput != null ? S.mineInput : q) + '" placeholder="Clock no. or WM-number" inputmode="text" autocomplete="off" autocapitalize="characters">' +
+      '<button class="btn btn-primary" type="submit">' + icon('search') + 'Find</button></form>' +
+      list +
+      '<button class="btn btn-quiet btn-block" data-act="refresh">' + icon('refresh') + 'Refresh</button></div>';
+  }
+
+  function orderById(id) { return S.orders.filter(function (o) { return o.id === id; })[0]; }
+
+  function viewDetail() {
+    var o = orderById(S.detailRef);
+    if (!o) {
+      return '<div class="narrow stack"><button class="btn btn-quiet" data-act="close-detail">' + icon('back') + 'Back</button>' +
+        (S.ordersState === 'loading' ? '<div class="skeleton"></div>' : '<div class="card empty">' + icon('alert') + '<p><strong>This order is no longer available.</strong></p><p class="muted small">It may have been removed when the demo was reset.</p></div>') + '</div>';
+    }
+    var idx = STATUSES.map(function (s) { return s.id; }).indexOf(o.status);
+    var times = {}; (o.history || []).forEach(function (h) { times[h.status] = h.at; });
+    var tl = '<ol class="timeline">' + STATUSES.map(function (s, i) {
+      var cls = (i < idx || o.status === 'collected') ? 'done' : (i === idx ? 'current' : 'todo');
+      return '<li class="' + cls + '"><span class="dot">' + (cls === 'done' ? icon('check') : icon(STATUS_ICON[s.id])) + '</span><div><div class="t">' + esc(s.name) + '</div>' +
+        (times[s.id] && cls !== 'todo' ? '<div class="muted small tabular">' + fWhen(times[s.id]) + '</div>' : '') +
+        (cls === 'current' ? '<div class="small">' + esc(s.help) + '</div>' : '') + '</div></li>';
+    }).join('') + '</ol>';
+    return '<div class="narrow stack"><button class="btn btn-quiet" style="align-self:flex-start" data-act="close-detail">' + icon('back') + 'All my orders</button>' +
+      '<section class="card" style="padding:18px;display:flex;flex-direction:column;gap:14px">' +
+        '<div class="order-top"><div><p class="eyebrow">Order reference</p><div class="ref" style="font-size:28px">' + esc(o.ref) + '</div></div>' + statusPill(o.status) + '</div>' +
+        (o.status === 'ready' ? '<div class="banner banner-ok">' + icon('boxCheck') + '<div><strong>Ready for collection.</strong> Collect it from the woodmill and quote ' + esc(o.ref) + '.</div></div>' : '') +
+        '<p class="muted small" style="margin:0">Last update ' + ago(o.updatedAt) + ' · this page updates by itself</p>' + tl +
+      '</section>' +
+      '<section class="card" style="padding:18px;display:flex;flex-direction:column;gap:12px"><h2 style="font-size:24px">Order details</h2>' +
+        '<div class="row" style="gap:8px">' + matTag(o.cat) + (o.demo ? '<span class="demo-tag">DEMO</span>' : '') + '</div>' +
+        '<div style="font-weight:700;font-size:19px;overflow-wrap:anywhere">' + esc(o.spec) + '</div>' + sizes(o) +
+        (o.notes ? '<div class="notes">' + esc(o.notes) + '</div>' : '') +
+        '<div class="who"><div><div class="k">Clock number</div><div class="v tabular">' + esc(o.clock) + '</div></div><div><div class="k">Department</div><div class="v">' + esc(o.dept) + '</div></div>' +
+        '<div><div class="k">Sent</div><div class="v tabular">' + fWhen(o.createdAt) + '</div></div>' + (o.project ? '<div><div class="k">Boat or project</div><div class="v">' + esc(o.project) + '</div></div>' : '') + '</div>' +
+      '</section></div>';
+  }
+
+  function sizes(o) {
+    return '<div class="sizes tabular"><div><div class="k">Length</div><div class="v">' + esc(o.len) + '<small> mm</small></div></div>' +
+      '<div><div class="k">Width</div><div class="v">' + esc(o.wid) + '<small> mm</small></div></div>' +
+      '<div><div class="k">Thick</div><div class="v">' + (o.thick ? esc(o.thick) + '<small> mm</small>' : '<small>—</small>') + '</div></div>' +
+      '<div><div class="k">Qty</div><div class="v">' + esc(o.qty) + '</div></div></div>';
+  }
+
+  /* ----- woodmill ----- */
+  var FILTERS = [['active', 'All active'], ['pending', 'Pending'], ['in_progress', 'In Progress'], ['ready', 'Ready'], ['collected', 'Completed'], ['all', 'Everything']];
+  var ORDER_RANK = { pending: 0, in_progress: 1, ready: 2, collected: 3 };
+  var SHORT = { pending: 'Pending', in_progress: 'In Progress', ready: 'Ready', collected: 'Completed' };
+
+  function viewMill() {
+    if (!S.operator) {
+      return '<div class="narrow stack"><div><p class="eyebrow">Woodmill</p><h1 class="page-title">Woodmill Dashboard</h1></div>' +
+        '<section class="card" style="padding:20px;display:flex;flex-direction:column;gap:14px">' +
+          '<div class="row" style="gap:10px;color:var(--navy)">' + icon('lock', ' width="28" height="28"') + '<strong style="font-size:20px">For the woodmill operator</strong></div>' +
+          '<p style="margin:0">A real system would ask the operator to sign in with their company account. This demonstration uses <strong>Demo Operator Mode</strong> instead.</p>' +
+          '<button class="btn btn-primary btn-xl btn-block" data-act="operator-on">Open in Demo Operator Mode</button>' +
+        '</section></div>';
+    }
+    var c = { pending: 0, in_progress: 0, ready: 0, collected: 0 };
+    S.orders.forEach(function (o) { if (c[o.status] != null) c[o.status]++; });
+    var f = S.millFilter;
+    var list = S.orders.filter(function (o) {
+      if (f === 'all') return true;
+      if (f === 'active') return o.status !== 'collected';
+      return o.status === f;
+    }).slice().sort(function (a, b) {
+      var ra = ORDER_RANK[a.status] === 3 ? 1 : 0, rb = ORDER_RANK[b.status] === 3 ? 1 : 0;
+      if (ra !== rb) return ra - rb; // active above completed
+      if (ra === 1) return a.updatedAt < b.updatedAt ? 1 : -1; // latest completed first
+      return a.createdAt < b.createdAt ? -1 : 1; // oldest active first
+    });
+    var counts = '<div class="counts">' + ['pending', 'in_progress', 'ready', 'collected'].map(function (s) {
+      return '<button class="count" data-act="filter" data-v="' + s + '" aria-pressed="' + (f === s) + '"><span class="n tabular">' + c[s] + '</span><span class="l status ' + s + '" style="border:0;padding:0;background:none">' + icon(STATUS_ICON[s]) + esc(SHORT[s]) + '</span></button>';
+    }).join('') + '</div>';
+    var filters = '<div class="filters" role="group" aria-label="Show">' + FILTERS.map(function (x) {
+      return '<button class="chip" data-act="filter" data-v="' + x[0] + '" aria-pressed="' + (f === x[0]) + '">' + x[1] + '</button>';
+    }).join('') + '</div>';
+    var body;
+    if (S.ordersState === 'loading') body = '<div class="skeleton"></div>';
+    else if (!list.length) body = '<div class="card empty">' + icon('box') + '<p><strong>No orders here.</strong></p><p class="muted small">New orders appear automatically.</p></div>';
+    else body = '<div class="mill-grid">' + list.map(jobCard).join('') + '</div>';
+
+    return '<div class="stack"><div class="mill-head"><div><p class="eyebrow">Demo Operator Mode</p><h1 class="page-title">Woodmill Dashboard</h1><p class="lead">Updates automatically. Oldest active orders first.</p></div>' +
+      '<button class="btn btn-quiet" data-act="refresh">' + icon('refresh') + 'Refresh</button></div>' + dbBanner() + counts + filters + body + demoTools() + '</div>';
+  }
+
+  function jobCard(o) {
+    var next = NEXT_ACTION[o.status];
+    var fresh = S.fresh[o.id] && Date.now() - S.fresh[o.id] < 20000;
+    var busy = S.busy === o.id;
+    return '<article class="job ' + esc(mat(o.cat).id) + (fresh ? ' fresh' : '') + '" data-ref="' + esc(o.ref) + '" data-status="' + esc(o.status) + '">' +
+      '<div class="order-top"><div class="row" style="gap:8px"><span class="ref">' + esc(o.ref) + '</span>' + (o.demo ? '<span class="demo-tag">DEMO</span>' : '') + (fresh ? '<span class="demo-tag" style="background:var(--focus);color:#fff">NEW</span>' : '') + '</div>' + statusPill(o.status) + '</div>' +
+      '<div>' + matTag(o.cat) + '</div>' +
+      '<div class="spec">' + esc(o.spec) + '</div>' + sizes(o) +
+      (o.notes ? '<div class="notes"><strong>Instructions:</strong> ' + esc(o.notes) + '</div>' : '') +
+      '<div class="who"><div><div class="k">Clock number</div><div class="v tabular">' + esc(o.clock) + (o.name ? ' · ' + esc(o.name) : '') + '</div></div>' +
+        '<div><div class="k">Department</div><div class="v">' + esc(o.dept) + '</div></div>' +
+        '<div><div class="k">Submitted</div><div class="v tabular">' + fWhen(o.createdAt) + '</div></div>' +
+        (o.project ? '<div><div class="k">Boat or project</div><div class="v">' + esc(o.project) + '</div></div>' : '') + '</div>' +
+      (next ? '<div class="job-actions"><button class="btn btn-xl btn-block btn-next ' + next[0] + '" data-act="advance" data-v="' + esc(o.id) + '"' + (busy ? ' disabled' : '') + '>' + icon(STATUS_ICON[next[0]]) + (busy ? 'Saving…' : esc(next[1])) + '</button>' +
+        (o.status !== 'pending' ? '<button class="linkbtn" style="align-self:center" data-act="undo" data-v="' + esc(o.id) + '">' + 'Move back to ' + esc(statusInfo(prevStatus(o.status)).name) + '</button>' : '') + '</div>'
+        : '<p class="muted small" style="margin:0">Completed ' + fWhen(o.updatedAt) + '. <button class="linkbtn" data-act="undo" data-v="' + esc(o.id) + '">Undo</button></p>') +
+      '</article>';
+  }
+  function prevStatus(s) { var i = ORDER_RANK[s]; return STATUSES[Math.max(0, i - 1)].id; }
+
+  function demoTools() {
+    return '<section class="card" style="padding:18px;display:flex;flex-direction:column;gap:10px;margin-top:10px">' +
+      '<h2 style="font-size:22px">Demo tools</h2>' +
+      '<p class="muted small" style="margin:0">Put the sample orders back the way they started. Orders placed during the demo are removed.</p>' +
+      '<div class="row">' + (S.resetArmed
+        ? '<button class="btn btn-danger" data-act="reset-go">Yes, reset demo orders</button><button class="btn btn-quiet" data-act="reset-cancel">Cancel</button>'
+        : '<button class="btn btn-quiet" data-act="reset-arm">Reset demo orders</button>') +
+      '<button class="btn btn-quiet" data-act="operator-off">Leave operator mode</button></div></section>';
+  }
+
+  /* ----- QR ----- */
+  function qrSvg(text, cls) {
+    if (typeof window.qrcode !== 'function') return '';
+    var q = window.qrcode(0, 'M'); q.addData(text); q.make();
+    var n = q.getModuleCount(), m = 2, d = '';
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (q.isDark(r, c)) d += 'M' + (c + m) + ' ' + (r + m) + 'h1v1h-1z';
+    var s = n + m * 2;
+    return '<svg class="' + (cls || 'qr') + '" viewBox="0 0 ' + s + ' ' + s + '" role="img" aria-label="QR code for the order form" shape-rendering="crispEdges"><rect width="' + s + '" height="' + s + '" fill="#fff"/><path d="' + d + '" fill="#10243a"/></svg>';
+  }
+  function orderUrl() { return APP_URL ? APP_URL + '#order' : ''; }
+
+  function viewQr() {
+    var url = orderUrl();
+    return '<div class="narrow stack"><div><p class="eyebrow">For the workshop wall</p><h1 class="page-title">QR code</h1><p class="lead">Scanning this opens the order form.</p></div>' +
+      (url ? '<div class="qr-box">' + qrSvg(url) + '<div><strong style="font-size:20px">Woodmill Material Orders</strong><div class="muted small">Scan with your phone camera to order.</div></div><div class="url" id="order-url">' + esc(url) + '</div>' +
+        '<div class="row" style="justify-content:center;width:100%"><button class="btn btn-secondary" data-act="copy-url">' + icon('copy') + 'Copy link</button><button class="btn btn-secondary" data-act="poster">' + icon('download') + 'Save poster</button></div></div>' +
+        '<p class="muted small" style="margin:0">“Save poster” gives you an A4 file you can print. On iPhone, open it from Files and tap Share → Print.</p>'
+        : '<div class="banner banner-warn">' + icon('alert') + '<div>The QR code appears once this page has its web address.</div></div>') +
+      '</div>';
+  }
+
+  function posterSvg() {
+    var url = orderUrl();
+    var q = window.qrcode(0, 'M'); q.addData(url); q.make();
+    var n = q.getModuleCount(), size = 130, cell = size / n, x0 = (210 - size) / 2, y0 = 92, d = '';
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (q.isDark(r, c)) d += 'M' + (x0 + c * cell).toFixed(3) + ' ' + (y0 + r * cell).toFixed(3) + 'h' + cell.toFixed(3) + 'v' + cell.toFixed(3) + 'h-' + cell.toFixed(3) + 'z';
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297" font-family="Arial, Helvetica, sans-serif">' +
+      '<rect width="210" height="297" fill="#ffffff"/><rect width="210" height="58" fill="#10243a"/>' +
+      '<text x="105" y="27" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">WOODMILL MATERIAL</text>' +
+      '<text x="105" y="45" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">ORDERS</text>' +
+      '<text x="105" y="76" text-anchor="middle" font-size="9" fill="#16212e">Scan with your phone camera to place an order.</text>' +
+      '<rect x="' + (x0 - 6) + '" y="' + (y0 - 6) + '" width="' + (size + 12) + '" height="' + (size + 12) + '" rx="4" fill="none" stroke="#10243a" stroke-width="1.6"/>' +
+      '<path d="' + d + '" fill="#10243a"/>' +
+      '<text x="105" y="248" text-anchor="middle" font-size="7.5" fill="#16212e">1. Scan   2. Choose material and sizes   3. Collect when ready</text>' +
+      '<text x="105" y="262" text-anchor="middle" font-size="4" fill="#4a5a6b">' + esc(url) + '</text>' +
+      '<text x="105" y="284" text-anchor="middle" font-size="4.2" fill="#4a5a6b">Concept demonstration with made-up data. Not an official company system.</text></svg>';
+  }
+
+  /* ---------------------------- render --------------------------------- */
+  function render() {
+    renderTabs();
+    var html = S.view === 'order' ? viewOrder() : S.view === 'mine' ? viewMine() : S.view === 'mill' ? viewMill() : S.view === 'qr' ? viewQr() : viewHome();
+    document.getElementById('app').innerHTML = html;
+  }
+  // Live updates must not steal the cursor from someone typing.
+  function renderKeepFocus() {
+    var a = document.activeElement;
+    if (a && a.matches && a.matches('input, textarea, select') && document.getElementById('app').contains(a)) {
+      if (S.view === 'order' && !S.submitted) return; // form view does not depend on live data
+      var id = a.id, pos = a.selectionStart;
+      render();
+      var el = id && document.getElementById(id);
+      if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) { /* not a text input */ } }
+      return;
+    }
+    render();
+  }
+
+  function startNewOrder() {
+    var who = recall('who');
+    S.submitted = null; S.draft = emptyDraft(who); S.editWho = !who; S.step = 1; S.errors = {}; S.submitError = null;
+  }
+
+  function go(view) {
+    // Coming back to "Order" after a finished order starts a fresh one (saved details are kept).
+    if (view === 'order' && S.view !== 'order' && S.submitted) startNewOrder();
+    S.view = view;
+    if (view !== 'mine') S.detailRef = null;
+    S.resetArmed = false;
+    render();
+    window.scrollTo(0, 0);
+    try { history.replaceState(null, '', '#' + view); } catch (e) { /* ignore */ }
+  }
+
+  /* ---------------------------- validation ----------------------------- */
+  function validateWho() {
+    var d = S.draft, e = {};
+    var clock = d.clock.replace(/\s+/g, '');
+    d.clock = clock;
+    if (!clock) e.clock = 'Enter your clock number.';
+    else if (!/^\d+$/.test(clock)) e.clock = 'Use numbers only for the clock number.';
+    else if (clock.length < CLOCK_MIN || clock.length > CLOCK_MAX) e.clock = 'Clock number must be ' + CLOCK_MIN + ' to ' + CLOCK_MAX + ' digits.';
+    if (!d.dept) e.dept = 'Choose your department, shed or line.';
+    return e;
+  }
+  function checkNumber(v, label, lim, whole, required) {
+    var s = String(v).trim();
+    if (!s) return required ? 'Enter the ' + label + '.' : null;
+    var n = num(s);
+    if (!isFinite(n)) return 'The ' + label + ' must be a number.';
+    if (n <= 0) return 'The ' + label + ' must be more than 0.';
+    if (whole && Math.floor(n) !== n) return 'The ' + label + ' must be a whole number.';
+    if (n < lim[0]) return 'The ' + label + ' must be at least ' + lim[0] + '.';
+    if (n > lim[1]) return 'The ' + label + ' must be ' + lim[1] + ' or less. Please check it.';
+    return null;
+  }
+  function validateSize() {
+    var d = S.draft, e = {}, m = mat(d.cat), x;
+    if (m.specs.length) {
+      if (!d.spec) e.spec = 'Choose the type of ' + m.name.toLowerCase() + '.';
+      else if (d.spec === '__other' && d.specOther.trim().length < 2) e.specOther = 'Describe the material.';
+    } else if (d.specOther.trim().length < 2) e.specOther = 'Describe the material.';
+    if ((x = checkNumber(d.thick, 'thickness', LIMITS.thick, false, m.id !== 'other'))) e.thick = x;
+    if ((x = checkNumber(d.len, 'length', LIMITS.len, true, true))) e.len = x;
+    if ((x = checkNumber(d.wid, 'width', LIMITS.wid, true, true))) e.wid = x;
+    if ((x = checkNumber(d.qty, 'quantity', LIMITS.qty, true, true))) e.qty = x;
+    if (d.notes.length > LIMITS.notes) e.notes = 'Keep instructions under ' + LIMITS.notes + ' characters.';
+    return e;
+  }
+  function showErrors(e) {
+    S.errors = e; render();
+    var first = Object.keys(e)[0];
+    var el = first && document.getElementById('f-' + first);
+    if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); }
+    else window.scrollTo(0, 0);
+  }
+
+  /* ---------------------------- actions -------------------------------- */
+  function submitOrder() {
+    if (S.submitting || !S.db) return;
+    var d = S.draft, ref = S.pendingRef;
+    S.submitting = true; S.submitError = null; render();
+    var now = new Date().toISOString();
+    var docRef = S.db.collection('orders').doc(ref);
+    var body = {
+      ref: ref, clock: d.clock, name: d.name.trim(), dept: d.dept, project: d.project.trim(),
+      cat: d.cat, spec: specName(d).trim(), thick: d.thick ? num(d.thick) : null, len: num(d.len), wid: num(d.wid), qty: num(d.qty),
+      notes: d.notes.trim(), status: 'pending', createdAt: now, updatedAt: now,
+      history: [{ status: 'pending', at: now }], demo: false, submitKey: S.submitKey
+    };
+    // The reference is fixed for this attempt, so a repeated tap or a retry writes the same order
+    // instead of creating a second one. Check the number is not already used by a different order.
+    withRetry(function () { return docRef.get(); }).then(function (snap) {
+      if (snap.exists && snap.data().submitKey !== S.submitKey) {
+        S.pendingRef = newRef();
+        S.submitting = false;
+        return submitOrder();
+      }
+      if (snap.exists) return snap.data();
+      return withRetry(function () { return docRef.set(body); }).then(function () { return body; });
+    }).then(function (saved) {
+      if (!saved) return;
+      var copy = Object.assign({}, saved, { id: saved.ref });
+      if (!S.orders.some(function (o) { return o.id === copy.id; })) S.orders = [copy].concat(S.orders);
+      S.submitting = false; S.submitted = saved; S.errors = {};
+      remember('who', { clock: d.clock, name: d.name.trim(), dept: d.dept });
+      remember('lastSearch', d.clock);
+      S.mineQuery = d.clock; S.mineInput = null;
+      render(); window.scrollTo(0, 0);
+    }).catch(function (e) {
+      logError('order was not saved', e);
+      S.submitting = false;
+      S.submitError = e && e.code === 'quota_exceeded'
+        ? 'The order store is full. Ask the presenter to reset the demo orders.'
+        : 'Your order has NOT been sent yet. Check your signal and tap Submit Order again. Your details are kept.';
+      render();
+    });
+  }
+
+  function changeStatus(id, to) {
+    var o = orderById(id);
+    if (!o || !S.db || S.busy) return;
+    S.busy = id; render();
+    var now = new Date().toISOString();
+    var hist = (o.history || []).slice();
+    if (ORDER_RANK[to] > ORDER_RANK[o.status]) hist.push({ status: to, at: now });
+    else hist = hist.filter(function (h) { return ORDER_RANK[h.status] <= ORDER_RANK[to]; });
+    withRetry(function () { return S.db.collection('orders').doc(id).update({ status: to, updatedAt: now, history: hist }); })
+      .then(function () { S.busy = null; delete S.fresh[id]; toast(o.ref + ': ' + statusInfo(to).name); render(); })
+      .catch(function (e) { logError('status change was not saved', e); S.busy = null; toast('Could not save. Check the connection and try again.'); render(); });
+  }
+
+  function resetDemo() {
+    if (!S.db) return;
+    S.resetArmed = false; S.busy = 'reset'; render();
+    var db = S.db;
+    db.doc('config/demo').get().then(function (snap) {
+      var samples = snap.exists ? (snap.data().orders || []) : [];
+      var ops = S.orders.map(function (o) { return function () { return db.collection('orders').doc(o.id).delete(); }; });
+      var now = Date.now();
+      samples.forEach(function (s) {
+        ops.push(function () {
+          var created = new Date(now - s.minutesAgo * 60000).toISOString();
+          var hist = [{ status: 'pending', at: created }];
+          (s.steps || []).forEach(function (st) { hist.push({ status: st[0], at: new Date(now - (s.minutesAgo - st[1]) * 60000).toISOString() }); });
+          var o = {}; Object.keys(s).forEach(function (k) { if (k !== 'minutesAgo' && k !== 'steps') o[k] = s[k]; });
+          o.createdAt = created; o.updatedAt = hist[hist.length - 1].at; o.history = hist; o.demo = true;
+          return db.collection('orders').doc(o.ref).set(o);
+        });
+      });
+      return ops.reduce(function (p, op) { return p.then(function () { return withRetry(op); }); }, Promise.resolve());
+    }).then(function () { S.busy = null; seenRefs = null; toast('Demo orders reset'); render(); })
+      .catch(function (e) { logError('demo reset failed', e); S.busy = null; toast('Reset did not finish. Try again.'); render(); });
+  }
+
+  function savePoster() {
+    window.claude.use('downloads').then(function (dl) {
+      if (!dl) { toast('Saving files is not available here. Take a screenshot of the QR code instead.'); return; }
+      return dl.save({ filename: 'woodmill-order-qr-poster.svg', data: posterSvg() });
+    }).catch(function (e) { if (!e || e.code !== 'declined') toast('The poster could not be saved here.'); });
+  }
+
+  function copyUrl() {
+    var url = orderUrl();
+    var fallback = function () {
+      var el = document.getElementById('order-url');
+      if (el) { var r = document.createRange(); r.selectNodeContents(el); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+      toast('Link selected — tap Copy');
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { toast('Link copied'); }, fallback);
+      else fallback();
+    } catch (e) { fallback(); }
+  }
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-go], [data-act]');
+    if (!t || t.disabled) return;
+    if (t.hasAttribute('data-go')) { ev.preventDefault(); go(t.getAttribute('data-go')); return; }
+    var act = t.getAttribute('data-act'), v = t.getAttribute('data-v'), d = S.draft;
+    switch (act) {
+      case 'edit-who': S.editWho = true; render(); break;
+      case 'step1': {
+        var e = validateWho(); if (Object.keys(e).length) return showErrors(e);
+        S.errors = {}; S.step = 2; render(); window.scrollTo(0, 0); break;
+      }
+      case 'pick-mat':
+        if (d.cat !== v) { d.cat = v; d.spec = ''; d.specOther = ''; d.thick = ''; }
+        S.errors = {}; S.step = 3; render(); window.scrollTo(0, 0); break;
+      case 'thick': d.thick = v; delete S.errors.thick; render(); break;
+      case 'qty': {
+        var q = parseInt(d.qty, 10); q = isFinite(q) ? q : 0;
+        q = Math.min(LIMITS.qty[1], Math.max(1, q + Number(v)));
+        d.qty = String(q); delete S.errors.qty; render(); break;
+      }
+      case 'step3': {
+        var e3 = validateSize(); if (Object.keys(e3).length) return showErrors(e3);
+        S.errors = {}; S.step = 4; S.pendingRef = newRef(); S.submitKey = Math.random().toString(36).slice(2) + Date.now().toString(36); S.submitError = null;
+        render(); window.scrollTo(0, 0); break;
+      }
+      case 'back': S.errors = {}; S.step = Math.max(1, S.step - 1); render(); window.scrollTo(0, 0); break;
+      case 'submit': submitOrder(); break;
+      case 'view-mine': S.detailRef = v; S.view = 'mine'; render(); window.scrollTo(0, 0); break;
+      case 'another': startNewOrder(); render(); window.scrollTo(0, 0); break;
+      case 'detail': S.detailRef = v; render(); window.scrollTo(0, 0); break;
+      case 'close-detail': S.detailRef = null; render(); break;
+      case 'refresh':
+        if (S.db) { ordersQuery().get().then(function (snap) {
+          applyOrders(snap.docs.map(toOrder)); toast('Up to date');
+        }, function (e) { logError('refresh failed', e); toast('Could not refresh. Check your signal.'); }); }
+        break;
+      case 'operator-on': S.operator = true; try { sessionStorage.setItem('wo.operator', '1'); } catch (e2) { /* ignore */ } render(); break;
+      case 'operator-off': S.operator = false; try { sessionStorage.removeItem('wo.operator'); } catch (e2) { /* ignore */ } render(); break;
+      case 'filter': S.millFilter = S.millFilter === v && v !== 'active' ? 'active' : v; render(); break;
+      case 'advance': { var o = orderById(v); if (o && NEXT_ACTION[o.status]) changeStatus(v, NEXT_ACTION[o.status][0]); break; }
+      case 'undo': { var ou = orderById(v); if (ou) changeStatus(v, prevStatus(ou.status)); break; }
+      case 'reset-arm': S.resetArmed = true; render(); break;
+      case 'reset-cancel': S.resetArmed = false; render(); break;
+      case 'reset-go': resetDemo(); break;
+      case 'copy-url': copyUrl(); break;
+      case 'poster': savePoster(); break;
+    }
+  });
+
+  document.addEventListener('input', function (ev) {
+    // Keep what is typed in the search box, so a live update cannot wipe it.
+    if (ev.target.id === 'f-mine') { S.mineInput = ev.target.value; return; }
+    var f = ev.target.getAttribute && ev.target.getAttribute('data-f');
+    if (!f) return;
+    S.draft[f] = ev.target.value;
+    if (f === 'notes') { var c = document.getElementById('notes-count'); if (c) c.textContent = ev.target.value.length + ' of ' + LIMITS.notes + ' characters'; }
+    if (f === 'thick') {
+      document.querySelectorAll('[data-act="thick"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === ev.target.value.trim())); });
+    }
+  });
+  document.addEventListener('change', function (ev) {
+    var f = ev.target.getAttribute && ev.target.getAttribute('data-f');
+    if (f === 'spec' || f === 'dept') { S.draft[f] = ev.target.value; delete S.errors[f]; if (f === 'spec') render(); }
+  });
+  document.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (ev.target.getAttribute('data-form') === 'mine') {
+      S.mineQuery = document.getElementById('f-mine').value.trim().toUpperCase();
+      S.mineInput = null;
+      remember('lastSearch', S.mineQuery);
+      S.detailRef = null; render();
+    }
+  });
+  window.addEventListener('hashchange', function () {
+    var h = location.hash.replace('#', '');
+    if (VIEWS.indexOf(h) >= 0 && h !== S.view) go(h);
+  });
+
+  render();
+  connect();
+})();
+</script>

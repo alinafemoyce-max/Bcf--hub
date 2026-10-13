@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-navy: #10243a;
+  --color-navy-900: #0c1c2e;
+  --color-navy-700: #1b3653;
+  --color-marine: #176b9a;
+  --color-marine-700: #125a83;
+  --color-marine-50: #e8f2f8;
+  --color-accent: #2b91c9;
+  --color-surface: #f3f6f8;
+  --color-ink: #243447;
+  --color-muted: #5a6b7d;
+  --color-subtle: #8494a5;
+  --color-line: #dce3e9;
+  --color-line-strong: #c5d0da;
+
+  --color-ok: #1d7348;
+  --color-ok-50: #e8f4ee;
+  --color-warn: #9a5a00;
+  --color-warn-50: #fdf3e2;
+  --color-danger: #b42318;
+  --color-danger-50: #fdecea;
+  --color-violet: #5b4bb7;
+  --color-violet-50: #efedfa;
+
+  --shadow-card: 0 1px 2px rgb(16 36 58 / 0.06), 0 1px 1px rgb(16 36 58 / 0.04);
+  --shadow-raised: 0 8px 24px -8px rgb(16 36 58 / 0.18), 0 2px 6px rgb(16 36 58 / 0.06);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Tabular figures keep measurements aligned. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Hide number spinners: the app provides its own large +/- controls where useful. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}

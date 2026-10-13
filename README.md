@@ -4,6 +4,8 @@ A mobile-first Progressive Web App for an apprentice representative. Use it to t
 
 > **Status: personal prototype.** BCF Hub is not an authorised, official or endorsed Sunseeker International system. Use the built-in fictional demo data until the approvals listed under [Before real workplace use](#before-real-workplace-use) are in place.
 
+> **Also in this repository:** [WoodmillFlow](woodmillflow/README.md) is a separate concept demonstration of digital woodmill material requests and job tracking. It lives in the `woodmillflow/` folder and has its own setup instructions.
+
 ---
 
 ## Features
