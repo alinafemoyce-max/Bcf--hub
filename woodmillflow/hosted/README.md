@@ -29,6 +29,10 @@ The link is **private to your claude.ai account**. Other people cannot open it u
 - **QR code:** opens the order form directly (`#order`). **Save poster** gives an A4 SVG you can print.
 - **Demo tools → Reset demo orders:** restores the seven sample orders (all marked DEMO) from the `config/demo` template in the database.
 
+## Testing
+
+`node hosted/tests/workflow.test.mjs` (run from the `woodmillflow` folder) drives the page in Chromium. It uses an employee session at iPhone size and a separate operator session, sharing one stand-in database whose documents are read-only, like the real one. It runs the full order → My Orders → dashboard → status-change → refresh scenario, plus error handling and width checks.
+
 ## Settings
 
 Material categories, types and thicknesses, departments, the clock-number rule and the dimension limits are listed at the top of the script in `woodmill-orders.html`, in the **SETTINGS** block. Edit them there and republish.

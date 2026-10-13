@@ -351,9 +351,9 @@ button.order-card { background: #fff; border-radius: var(--radius); }
     { id: 'pending', name: 'Pending', help: 'The woodmill has your order.' },
     { id: 'in_progress', name: 'In Progress', help: 'Your material is being cut.' },
     { id: 'ready', name: 'Ready for Collection', help: 'Collect it from the woodmill.' },
-    { id: 'collected', name: 'Collected', help: 'Order complete.' }
+    { id: 'collected', name: 'Completed', help: 'Collected from the woodmill. Order complete.' }
   ];
-  var NEXT_ACTION = { pending: ['in_progress', 'Start Cutting'], in_progress: ['ready', 'Mark Ready for Collection'], ready: ['collected', 'Mark Collected'] };
+  var NEXT_ACTION = { pending: ['in_progress', 'Start Cutting'], in_progress: ['ready', 'Mark Ready for Collection'], ready: ['collected', 'Mark Completed (collected)'] };
 
   /* ====================================================================== */
 
@@ -462,26 +462,55 @@ button.order-card { background: #fff; border-radius: var(--radius); }
   }
 
   /* --------------------------- database -------------------------------- */
+  // The database hands out READ-ONLY (frozen) documents. Copy each one into a plain object
+  // before adding fields; writing to the original throws and stops the order list loading.
+  function toOrder(d) { return Object.assign({}, d.data(), { id: d.id }); }
+  function logError(where, e) { try { console.error('[woodmill] ' + where, e && e.code, e && e.message, e); } catch (x) { /* ignore */ } }
+
+  function applyOrders(list) {
+    if (seenRefs) {
+      list.forEach(function (o) { if (!seenRefs[o.id] && o.status === 'pending') S.fresh[o.id] = Date.now(); });
+      if (S.view === 'mill') {
+        var newOnes = list.filter(function (o) { return !seenRefs[o.id]; });
+        if (newOnes.length) toast('New order received: ' + newOnes[0].ref);
+      }
+    }
+    seenRefs = {}; list.forEach(function (o) { seenRefs[o.id] = true; });
+    S.orders = list; S.ordersState = 'ready';
+    renderKeepFocus();
+  }
+  function ordersQuery() { return S.db.collection('orders').orderBy('createdAt', 'desc').limit(500); }
+
+  // Live updates, with an automatic re-subscribe if the connection drops.
+  function subscribe() {
+    ordersQuery().onSnapshot(function (snap) {
+      try { applyOrders(snap.docs.map(toOrder)); }
+      catch (e) { logError('could not show orders', e); S.ordersState = 'error'; render(); }
+    }, function (e) {
+      logError('live order updates stopped', e);
+      S.ordersState = S.orders.length ? 'ready' : 'error'; render();
+      if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) setTimeout(subscribe, 3000);
+    });
+  }
+  // Backstop: re-read every 10 s while the order list is on screen, in case live updates fall back to slow polling.
+  function pollOrders() {
+    if (S.db && !document.hidden && (S.view === 'mine' || S.view === 'mill')) {
+      ordersQuery().get().then(function (snap) {
+        var list = snap.docs.map(toOrder);
+        if (JSON.stringify(list) !== JSON.stringify(S.orders)) applyOrders(list);
+      }, function (e) { logError('background refresh failed', e); });
+    }
+  }
+  setInterval(pollOrders, 10000);
+
   var seenRefs = null;
   function connect() {
     if (!window.claude || typeof window.claude.use !== 'function') { S.db = null; S.ordersState = 'unavailable'; render(); return; }
     window.claude.use('db').then(function (db) {
       S.db = db;
       if (!db) { S.ordersState = 'unavailable'; render(); return; }
-      db.collection('orders').orderBy('createdAt', 'desc').limit(500).onSnapshot(function (snap) {
-        var list = snap.docs.map(function (d) { var o = d.data(); o.id = d.id; return o; });
-        if (seenRefs) {
-          list.forEach(function (o) { if (!seenRefs[o.id] && o.status === 'pending') S.fresh[o.id] = Date.now(); });
-          if (S.view === 'mill') {
-            var newOnes = list.filter(function (o) { return !seenRefs[o.id]; });
-            if (newOnes.length) toast('New order received: ' + newOnes[0].ref);
-          }
-        }
-        seenRefs = {}; list.forEach(function (o) { seenRefs[o.id] = true; });
-        S.orders = list; S.ordersState = 'ready';
-        renderKeepFocus();
-      }, function () { S.ordersState = 'error'; render(); });
-    }, function () { S.db = null; S.ordersState = 'unavailable'; render(); });
+      subscribe();
+    }, function (e) { logError('order storage unavailable', e); S.db = null; S.ordersState = 'unavailable'; render(); });
   }
 
   function withRetry(fn) {
@@ -640,7 +669,8 @@ button.order-card { background: #fff; border-radius: var(--radius); }
     q = String(q || '').trim().toUpperCase();
     if (!q) return [];
     var asRef = q.indexOf('WM-') === 0 ? q : (/^\d{5}$/.test(q) ? 'WM-' + q : null);
-    return S.orders.filter(function (o) { return o.clock === q || o.ref === q || (asRef && o.ref === asRef); });
+    return S.orders.filter(function (o) { return String(o.clock) === q || o.ref === q || (asRef && o.ref === asRef); })
+      .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; });
   }
 
   function viewMine() {
@@ -650,9 +680,10 @@ button.order-card { background: #fff; border-radius: var(--radius); }
     var list;
     if (S.ordersState === 'loading') list = '<div class="skeleton"></div>';
     else if (!q) list = '<div class="card empty">' + icon('search') + '<p>Enter your clock number to see your orders.</p></div>';
-    else if (!res.length) list = '<div class="card empty">' + icon('list') + '<p><strong>No orders found for “' + esc(q) + '”.</strong></p><p class="muted small">Check the number, or place a new order.</p><button class="btn btn-secondary" data-go="order">Place an Order</button></div>';
-    else list = '<p class="muted small" style="margin:0">' + res.length + (res.length === 1 ? ' order' : ' orders') + ' · newest first · updates automatically</p>' + res.map(function (o) {
-      return '<button class="order-card" data-act="detail" data-v="' + esc(o.id) + '">' +
+    else if (!res.length && /^WM-/i.test(q)) list = '<div class="card empty">' + icon('list') + '<p><strong>No order found with reference ' + esc(q) + '.</strong></p><p class="muted small">Check the reference, or search with your clock number.</p></div>';
+    else if (!res.length) list = '<div class="card empty">' + icon('list') + '<p><strong>You haven\'t placed any orders yet.</strong></p><p class="muted small">No orders for clock number ' + esc(q) + '.</p><button class="btn btn-secondary" data-go="order">Place an Order</button></div>';
+    else list = '<p class="muted small" style="margin:0">' + (/^WM-/i.test(q) ? 'Order ' + esc(q) : 'Orders for clock number ' + esc(q)) + ' · newest first · updates automatically</p>' + res.map(function (o) {
+      return '<button class="order-card" data-act="detail" data-ref="' + esc(o.ref) + '" data-v="' + esc(o.id) + '">' +
         '<div class="order-top"><span class="ref">' + esc(o.ref) + '</span>' + statusPill(o.status) + '</div>' +
         '<div class="row" style="gap:8px">' + matTag(o.cat) + (o.demo ? '<span class="demo-tag">DEMO</span>' : '') + '</div>' +
         '<div style="font-weight:700;overflow-wrap:anywhere">' + esc(o.spec) + ' · <span class="tabular">' + esc(o.qty) + ' × ' + esc(o.len) + ' × ' + esc(o.wid) + ' mm</span></div>' +
@@ -660,7 +691,7 @@ button.order-card { background: #fff; border-radius: var(--radius); }
     }).join('');
     return '<div class="narrow stack"><div><p class="eyebrow">Track</p><h1 class="page-title">My Orders</h1></div>' + dbBanner() +
       '<form class="searchbar" data-form="mine" role="search"><label class="sr" for="f-mine" style="position:absolute;left:-9999px">Clock number or order reference</label>' +
-      '<input id="f-mine" class="input tabular" value="' + esc(q) + '" placeholder="Clock no. or WM-number" inputmode="text" autocomplete="off" autocapitalize="characters">' +
+      '<input id="f-mine" class="input tabular" value="' + esc(S.mineInput != null ? S.mineInput : q) + '" placeholder="Clock no. or WM-number" inputmode="text" autocomplete="off" autocapitalize="characters">' +
       '<button class="btn btn-primary" type="submit">' + icon('search') + 'Find</button></form>' +
       list +
       '<button class="btn btn-quiet btn-block" data-act="refresh">' + icon('refresh') + 'Refresh</button></div>';
@@ -705,9 +736,9 @@ button.order-card { background: #fff; border-radius: var(--radius); }
   }
 
   /* ----- woodmill ----- */
-  var FILTERS = [['active', 'All active'], ['pending', 'Pending'], ['in_progress', 'In Progress'], ['ready', 'Ready'], ['collected', 'Collected'], ['all', 'Everything']];
+  var FILTERS = [['active', 'All active'], ['pending', 'Pending'], ['in_progress', 'In Progress'], ['ready', 'Ready'], ['collected', 'Completed'], ['all', 'Everything']];
   var ORDER_RANK = { pending: 0, in_progress: 1, ready: 2, collected: 3 };
-  var SHORT = { pending: 'Pending', in_progress: 'In Progress', ready: 'Ready', collected: 'Collected' };
+  var SHORT = { pending: 'Pending', in_progress: 'In Progress', ready: 'Ready', collected: 'Completed' };
 
   function viewMill() {
     if (!S.operator) {
@@ -918,12 +949,15 @@ button.order-card { background: #fff; border-radius: var(--radius); }
       return withRetry(function () { return docRef.set(body); }).then(function () { return body; });
     }).then(function (saved) {
       if (!saved) return;
+      var copy = Object.assign({}, saved, { id: saved.ref });
+      if (!S.orders.some(function (o) { return o.id === copy.id; })) S.orders = [copy].concat(S.orders);
       S.submitting = false; S.submitted = saved; S.errors = {};
       remember('who', { clock: d.clock, name: d.name.trim(), dept: d.dept });
       remember('lastSearch', d.clock);
-      S.mineQuery = d.clock;
+      S.mineQuery = d.clock; S.mineInput = null;
       render(); window.scrollTo(0, 0);
     }).catch(function (e) {
+      logError('order was not saved', e);
       S.submitting = false;
       S.submitError = e && e.code === 'quota_exceeded'
         ? 'The order store is full. Ask the presenter to reset the demo orders.'
@@ -942,7 +976,7 @@ button.order-card { background: #fff; border-radius: var(--radius); }
     else hist = hist.filter(function (h) { return ORDER_RANK[h.status] <= ORDER_RANK[to]; });
     withRetry(function () { return S.db.collection('orders').doc(id).update({ status: to, updatedAt: now, history: hist }); })
       .then(function () { S.busy = null; delete S.fresh[id]; toast(o.ref + ': ' + statusInfo(to).name); render(); })
-      .catch(function () { S.busy = null; toast('Could not save. Check the connection and try again.'); render(); });
+      .catch(function (e) { logError('status change was not saved', e); S.busy = null; toast('Could not save. Check the connection and try again.'); render(); });
   }
 
   function resetDemo() {
@@ -965,7 +999,7 @@ button.order-card { background: #fff; border-radius: var(--radius); }
       });
       return ops.reduce(function (p, op) { return p.then(function () { return withRetry(op); }); }, Promise.resolve());
     }).then(function () { S.busy = null; seenRefs = null; toast('Demo orders reset'); render(); })
-      .catch(function () { S.busy = null; toast('Reset did not finish. Try again.'); render(); });
+      .catch(function (e) { logError('demo reset failed', e); S.busy = null; toast('Reset did not finish. Try again.'); render(); });
   }
 
   function savePoster() {
@@ -1020,9 +1054,9 @@ button.order-card { background: #fff; border-radius: var(--radius); }
       case 'detail': S.detailRef = v; render(); window.scrollTo(0, 0); break;
       case 'close-detail': S.detailRef = null; render(); break;
       case 'refresh':
-        if (S.db) { S.db.collection('orders').orderBy('createdAt', 'desc').limit(500).get().then(function (snap) {
-          S.orders = snap.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; }); S.ordersState = 'ready'; render(); toast('Up to date');
-        }, function () { toast('Could not refresh. Check your signal.'); }); }
+        if (S.db) { ordersQuery().get().then(function (snap) {
+          applyOrders(snap.docs.map(toOrder)); toast('Up to date');
+        }, function (e) { logError('refresh failed', e); toast('Could not refresh. Check your signal.'); }); }
         break;
       case 'operator-on': S.operator = true; try { sessionStorage.setItem('wo.operator', '1'); } catch (e2) { /* ignore */ } render(); break;
       case 'operator-off': S.operator = false; try { sessionStorage.removeItem('wo.operator'); } catch (e2) { /* ignore */ } render(); break;
@@ -1038,6 +1072,8 @@ button.order-card { background: #fff; border-radius: var(--radius); }
   });
 
   document.addEventListener('input', function (ev) {
+    // Keep what is typed in the search box, so a live update cannot wipe it.
+    if (ev.target.id === 'f-mine') { S.mineInput = ev.target.value; return; }
     var f = ev.target.getAttribute && ev.target.getAttribute('data-f');
     if (!f) return;
     S.draft[f] = ev.target.value;
@@ -1054,6 +1090,7 @@ button.order-card { background: #fff; border-radius: var(--radius); }
     ev.preventDefault();
     if (ev.target.getAttribute('data-form') === 'mine') {
       S.mineQuery = document.getElementById('f-mine').value.trim().toUpperCase();
+      S.mineInput = null;
       remember('lastSearch', S.mineQuery);
       S.detailRef = null; render();
     }
