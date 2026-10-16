@@ -1336,3 +1336,28 @@ details.acc .acc-body {
     border-color: #000;
   }
 }
+
+/* ── Home Screen tip ────────────────────────────────────────────────────── */
+.install-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 14px 8px 16px;
+  border-radius: 18px;
+  background: rgba(45, 212, 191, 0.09);
+  border: 1px solid rgba(45, 212, 191, 0.35);
+}
+.install-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--grad);
+  color: #04122a;
+}
+.inline-icon {
+  display: inline-block;
+  vertical-align: -2px;
+}

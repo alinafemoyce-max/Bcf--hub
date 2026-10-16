@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '../components/Icon';
+import { InstallTip } from '../components/InstallTip';
 import { CareerCard, Empty, Ext, Idea, LinkButton, Notice, TopBar } from '../components/ui';
 import { sectorLabel } from '../data/catalog';
 import { LINKS } from '../data/sources';
@@ -93,6 +94,7 @@ export default function Paths() {
         </div>
 
         <div className="stack" style={{ marginTop: 16 }}>
+          <InstallTip compact />
           {!start && profile.role && (
             <Notice tone="amber" icon="alert">
               We couldn’t match “{profile.role}” to a career in our starter dataset

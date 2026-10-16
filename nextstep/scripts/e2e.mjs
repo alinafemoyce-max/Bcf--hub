@@ -59,6 +59,16 @@ await check('welcome screen loads with no errors', async () => {
   await snap(page, '01-welcome');
 });
 
+await check('Home Screen tip shows on iPhone and can be dismissed', async () => {
+  const tip = page.getByRole('complementary', { name: 'Keep your progress' });
+  await tip.getByText(/Add to Home Screen/).waitFor();
+  await tip.getByRole('button', { name: 'Got it' }).click();
+  await page.reload();
+  await page.getByText('Your future').waitFor();
+  assert((await tip.count()) === 0, 'tip came back after dismissing');
+  await page.evaluate(() => localStorage.removeItem('nextstep:install-tip-dismissed'));
+});
+
 await check('onboarding: answer, skip and finish', async () => {
   await page.getByRole('link', { name: /Get started/ }).click();
   await page.getByText('What best describes you?').waitFor();
@@ -246,6 +256,10 @@ await check('works on a wide desktop screen', async () => {
   const desk = await newPage({ viewport: { width: 1280, height: 900 }, isMobile: false, hasTouch: false, userAgent: undefined, deviceScaleFactor: 1 });
   await desk.goto(`${BASE}#/career/carpenter`);
   await desk.getByRole('heading', { name: 'What the role involves' }).waitFor();
+  await desk.goto(BASE);
+  await desk.getByText('Your future').waitFor();
+  assert((await desk.getByRole('complementary', { name: 'Keep your progress' }).count()) === 0, 'Home Screen tip shown on desktop');
+  await desk.goto(`${BASE}#/career/carpenter`);
   await noHScroll(desk);
   await snap(desk, '08-desktop');
 });
