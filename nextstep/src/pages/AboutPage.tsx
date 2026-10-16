@@ -30,7 +30,8 @@ export default function AboutPage() {
 
           <section className="card stack">
             <h2 className="h3">Add to your Home Screen</h2>
-            <p className="small muted">On iPhone in Safari: tap the Share button, then “Add to Home Screen”. NextStep then opens like an app and works offline.</p>
+            <p className="small muted">On iPhone in Safari: tap the Share button, then “Add to Home Screen”. NextStep then opens like an app, works offline and keeps your progress safe.</p>
+            <p className="small muted">Do this before you start, then always open NextStep from the icon. The Home Screen app keeps its own progress, separate from Safari, and Safari can clear saved progress on websites you haven’t opened for about a week.</p>
           </section>
 
           <section className="card stack" id="privacy">
@@ -41,7 +42,7 @@ export default function AboutPage() {
               <li>
                 <strong>They don’t sync between devices.</strong> If you open NextStep on another phone, computer or browser, you’ll start fresh.
               </li>
-              <li>Clearing Safari’s website data, or using Private Browsing, will remove your progress.</li>
+              <li>Clearing Safari’s website data, using Private Browsing, or not opening NextStep in Safari for about a week can remove your progress. Adding it to your Home Screen avoids the last one.</li>
               <li>Shared links only ever contain a career name – never your answers. You always see exactly what will be shared first.</li>
             </ul>
             <p className="small">

@@ -1,4 +1,5 @@
 import { BrandMark, Icon } from '../components/Icon';
+import { InstallTip } from '../components/InstallTip';
 import { LinkButton, Notice } from '../components/ui';
 import { useStore } from '../state/store';
 
@@ -12,6 +13,8 @@ export default function Welcome() {
           <BrandMark size={40} />
           <span style={{ font: '700 22px/1 var(--font-display)', letterSpacing: '-0.01em' }}>NextStep</span>
         </div>
+
+        <InstallTip />
 
         <section className="hero stack">
           <p className="eyebrow">UK career pathways</p>
@@ -64,7 +67,7 @@ export default function Welcome() {
 
         <Notice icon="lock">
           <strong>No account needed.</strong> Your answers stay on this device only and are never sent anywhere.{' '}
-          {canSave ? 'They won’t sync to your other devices.' : 'Your browser is blocking storage (for example in Private Browsing), so progress won’t be saved after you close this page.'}{' '}
+          {canSave ? 'They won’t sync to your other devices, and Safari may clear them if you don’t open NextStep for a while – adding it to your Home Screen avoids that.' : 'Your browser is blocking storage (for example in Private Browsing), so progress won’t be saved after you close this page.'}{' '}
           <a href="#/about">Privacy and reset</a>
         </Notice>
 
