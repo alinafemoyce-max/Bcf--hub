@@ -110,9 +110,11 @@ export default function PlanPage({ slug }: { slug: string }) {
           <button className="btn btn-secondary btn-block" onClick={() => setShare(true)}>
             <Icon name="share" /> Share or copy this plan
           </button>
-          <button className="btn btn-ghost btn-block" onClick={() => window.print()}>
-            <Icon name="print" /> Print or save as PDF
-          </button>
+          {!import.meta.env.VITE_TARGET && (
+            <button className="btn btn-ghost btn-block" onClick={() => window.print()}>
+              <Icon name="print" /> Print or save as PDF
+            </button>
+          )}
           <LinkButton to={`/map/${slug}`} block kind="ghost">
             <Icon name="map" /> See the route on the career map
           </LinkButton>
