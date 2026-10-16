@@ -55,6 +55,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
         navigateFallback: 'index.html',
+        // NextStep is published in the nextstep/ sub-folder of the same site; never answer its pages with BCF Hub.
+        navigateFallbackDenylist: [/\/nextstep(\/|$)/],
         // Everything is bundled locally; no runtime caching of third-party hosts.
         runtimeCaching: []
       }
