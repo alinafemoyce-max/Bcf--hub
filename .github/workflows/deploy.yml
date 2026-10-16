@@ -1,5 +1,7 @@
-# Tests and builds BCF Hub on every push to main, then publishes the built app to the
-# gh-pages branch, which GitHub Pages serves at https://alinafemoyce-max.github.io/Bcf--hub/
+# Tests and builds BCF Hub and NextStep on every push to main, then publishes both to the
+# gh-pages branch, which GitHub Pages serves at:
+#   BCF Hub:  https://alinafemoyce-max.github.io/Bcf--hub/
+#   NextStep: https://alinafemoyce-max.github.io/Bcf--hub/nextstep/
 name: Test and deploy
 
 on:
@@ -23,9 +25,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            nextstep/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Test and build NextStep
+        working-directory: nextstep
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - run: cp -r nextstep/dist dist/nextstep
       - run: touch dist/.nojekyll
       - uses: peaceiris/actions-gh-pages@v4
         with:
