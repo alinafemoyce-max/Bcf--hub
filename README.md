@@ -4,6 +4,8 @@ A mobile-first Progressive Web App for an apprentice representative. Use it to t
 
 > **Status: personal prototype.** BCF Hub is not an authorised, official or endorsed Sunseeker International system. Use the built-in fictional demo data until the approvals listed under [Before real workplace use](#before-real-workplace-use) are in place.
 
+> **Other apps in this repository:** [`nextstep/`](nextstep/) (career exploration) and [`creator-intelligence/`](creator-intelligence/) (AJM Creator Intelligence, a TikTok analytics app deployed separately on Vercel; see its README).
+
 ---
 
 ## Features

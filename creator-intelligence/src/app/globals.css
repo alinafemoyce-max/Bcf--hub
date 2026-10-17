@@ -1,0 +1,94 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0b0c0f;
+  --color-surface: #14161a;
+  --color-surface-2: #1b1e23;
+  --color-surface-3: #24282f;
+  --color-line: #262a31;
+  --color-line-strong: #343944;
+  --color-ink: #f2f3f5;
+  --color-ink-2: #b6bbc4;
+  --color-ink-3: #808792;
+  --color-accent: #3987e5;
+  --color-accent-strong: #5598e7;
+  --color-accent-soft: rgb(57 135 229 / 0.14);
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-good: #2fb67c;
+  --color-warn: #e0a326;
+  --color-bad: #e5534b;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --radius-card: 1.125rem;
+}
+
+:root {
+  color-scheme: dark;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  background: var(--color-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Numbers line up in tables and stat tiles. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* iOS zooms into inputs with font-size < 16px; keep form controls at 16px. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+input[type='date'],
+input[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 2.75rem;
+}
+
+::selection {
+  background: rgb(57 135 229 / 0.35);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-in {
+  animation: fade-up 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in {
+    animation: none;
+  }
+}
+
+/* Recharts: keep focus outlines off SVG wrappers (tooltip still works with tap). */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
