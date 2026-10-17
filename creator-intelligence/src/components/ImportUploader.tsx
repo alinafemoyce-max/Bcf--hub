@@ -3,13 +3,18 @@
 import { CheckCircle2, CircleAlert, Copy, ImagePlus, LayoutList, LineChart, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/client';
 import { prepareImage, readCaptureDate, sha256Hex } from '@/lib/image-client';
+import { ocrStatusLabel, recognizeImage } from '@/lib/ocr-client';
+import { ocrToExtraction } from '@/lib/ocr-parse';
 import type { ScreenshotKind } from '@/lib/types';
 import { Button, cx, Notice, Spinner } from './ui';
 
-type ItemState = 'preparing' | 'uploading' | 'extracting' | 'ready' | 'duplicate' | 'failed' | 'needs_manual';
+type ItemState = 'preparing' | 'uploading' | 'extracting' | 'reading' | 'ready' | 'duplicate' | 'failed' | 'needs_manual';
+export type Reader = 'claude' | 'free';
+const READER_KEY = 'ajm-reader';
+
 interface Item {
   key: string;
   name: string;
@@ -17,6 +22,7 @@ interface Item {
   screenshotId?: string;
   message?: string;
   entries?: number;
+  progress?: string;
 }
 
 const KINDS: { kind: ScreenshotKind; title: string; desc: string; icon: React.ReactNode }[] = [
@@ -29,6 +35,23 @@ export function ImportUploader({ aiConfigured, targetVideo }: { aiConfigured: bo
   const router = useRouter();
   const [kind, setKind] = useState<ScreenshotKind>(targetVideo ? 'video_analytics' : 'video_list');
   const [items, setItems] = useState<Item[]>([]);
+  const [reader, setReader] = useState<Reader>(aiConfigured ? 'claude' : 'free');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(READER_KEY);
+      if (saved === 'free' || (saved === 'claude' && aiConfigured)) setReader(saved);
+    } catch {
+      // storage unavailable (private mode); keep the default
+    }
+  }, [aiConfigured]);
+  const chooseReader = (r: Reader) => {
+    setReader(r);
+    try {
+      localStorage.setItem(READER_KEY, r);
+    } catch {
+      // ignore
+    }
+  };
   const [running, setRunning] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -65,13 +88,28 @@ export function ImportUploader({ aiConfigured, targetVideo }: { aiConfigured: bo
           });
           continue;
         }
-        if (!aiConfigured) {
-          patch(key, { state: 'needs_manual', screenshotId: up.screenshot.id, message: 'AI is not configured, so enter the numbers by hand.' });
+        const screenshotId = up.screenshot.id;
+        if (reader === 'free') {
+          patch(key, { state: 'reading', screenshotId, progress: 'Starting the reader' });
+          try {
+            const ocr = await recognizeImage(file, (status, p) =>
+              patch(key, { progress: ocrStatusLabel(status, p) })
+            ).catch(() => recognizeImage(prepared.blob));
+            const extraction = ocrToExtraction(kind, ocr.lines, { width: ocr.width, height: ocr.height }, new Date());
+            const saved = await api<{ screenshot: { entries: number } }>(`/api/screenshots/${screenshotId}/ocr`, { method: 'POST', json: extraction });
+            patch(key, { state: 'ready', entries: saved.screenshot.entries });
+          } catch (err) {
+            patch(key, { state: 'needs_manual', message: (err as Error).message });
+          }
           continue;
         }
-        patch(key, { state: 'extracting', screenshotId: up.screenshot.id });
+        if (!aiConfigured) {
+          patch(key, { state: 'needs_manual', screenshotId, message: 'AI is not configured, so enter the numbers by hand.' });
+          continue;
+        }
+        patch(key, { state: 'extracting', screenshotId });
         try {
-          const ex = await api<{ screenshot: { entries: number } }>(`/api/screenshots/${up.screenshot.id}/extract`, { method: 'POST' });
+          const ex = await api<{ screenshot: { entries: number } }>(`/api/screenshots/${screenshotId}/extract`, { method: 'POST' });
           patch(key, { state: 'ready', entries: ex.screenshot.entries });
         } catch (err) {
           patch(key, { state: 'needs_manual', message: (err as Error).message });
@@ -113,6 +151,30 @@ export function ImportUploader({ aiConfigured, targetVideo }: { aiConfigured: bo
         ))}
       </div>
 
+      <div>
+        <div className="mb-1.5 text-[13px] font-medium text-ink-2">Who reads the screenshot?</div>
+        <div className="flex rounded-xl border border-line bg-surface p-1" role="radiogroup" aria-label="Screenshot reader">
+          {(
+            [
+              ['claude', 'Claude AI', aiConfigured ? 'Most accurate · tiny cost' : 'Needs API key'],
+              ['free', 'Free (on phone)', 'No cost · less accurate']
+            ] as const
+          ).map(([value, label, sub]) => (
+            <button
+              key={value}
+              role="radio"
+              aria-checked={reader === value}
+              disabled={value === 'claude' && !aiConfigured}
+              onClick={() => chooseReader(value)}
+              className={cx('flex-1 rounded-lg px-2 py-2 text-center transition-colors disabled:opacity-40', reader === value ? 'bg-surface-3 text-ink' : 'text-ink-3')}
+            >
+              <span className="block text-[13.5px] font-medium">{label}</span>
+              <span className="block text-[11.5px] text-ink-3">{sub}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <input
         ref={input}
         type="file"
@@ -128,7 +190,8 @@ export function ImportUploader({ aiConfigured, targetVideo }: { aiConfigured: bo
         {running ? <Spinner /> : <ImagePlus size={18} />} {running ? 'Processing…' : 'Choose screenshots'}
       </Button>
       <p className="-mt-2 text-center text-[12px] text-ink-3">
-        Up to 20 at a time. {aiConfigured ? 'Claude reads each one; you check everything before it is saved.' : 'AI is not configured: you will type the numbers in.'}
+        Up to 20 at a time. You check everything before it is saved.{' '}
+        {reader === 'free' ? 'The free reader runs on this phone; the first use downloads about 7 MB.' : 'Claude reads each one on the server.'}
       </p>
 
       {items.length > 0 && (
@@ -142,6 +205,7 @@ export function ImportUploader({ aiConfigured, targetVideo }: { aiConfigured: bo
                   {i.state === 'preparing' && 'Preparing…'}
                   {i.state === 'uploading' && 'Uploading…'}
                   {i.state === 'extracting' && 'Reading with Claude (can take ~30s)…'}
+                  {i.state === 'reading' && `${i.progress ?? 'Reading'}…`}
                   {i.state === 'ready' && `${i.entries ?? 0} ${i.entries === 1 ? 'entry' : 'entries'} found. Ready to review.`}
                   {(i.state === 'duplicate' || i.state === 'failed' || i.state === 'needs_manual') && i.message}
                 </div>

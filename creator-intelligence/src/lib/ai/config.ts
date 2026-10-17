@@ -3,7 +3,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { Db } from '../db/client';
 import { UserError } from '../errors';
 
-export const DEFAULT_MODEL = 'claude-opus-5-5';
+// Haiku is the low-cost default (well under 1p per screenshot). Set ANTHROPIC_MODEL to
+// claude-sonnet-5-5 or claude-opus-5-5 for more careful reading at a higher cost.
+export const DEFAULT_MODEL = 'claude-haiku-5-5';
 
 export function aiModel() {
   return process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL;

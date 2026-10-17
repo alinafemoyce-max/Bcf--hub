@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Db, Row } from '../db/client';
 import { ConflictError, NotFoundError, UserError } from '../errors';
 import type { Extraction } from '../extraction/schema';
+import type { StoredExtraction } from '../ocr-parse';
 import { contentFingerprint, findMatches } from '../matching';
 import { parseTikTokVideoId } from '../parse';
 import type { ObservedSource, ScreenshotKind, ScreenshotStatus } from '../types';
@@ -21,7 +22,7 @@ export interface ScreenshotRecord {
   byte_size: number;
   has_image: boolean;
   status: ScreenshotStatus;
-  extraction: Extraction | null;
+  extraction: StoredExtraction | null;
   extraction_model: string | null;
   extraction_error: string | null;
   content_fingerprint: string | null;
@@ -155,7 +156,7 @@ export async function listScreenshots(db: Db, opts: { pendingOnly?: boolean; lim
   return rows.map(toScreenshot);
 }
 
-export async function saveExtraction(db: Db, id: string, extraction: Extraction, model: string): Promise<ScreenshotRecord> {
+export async function saveExtraction(db: Db, id: string, extraction: Extraction | StoredExtraction, model: string): Promise<ScreenshotRecord> {
   const fp = contentFingerprint(
     extraction.videos.map((v) => ({ title: v.title_text, views: v.views_text, published: v.published_text }))
   );

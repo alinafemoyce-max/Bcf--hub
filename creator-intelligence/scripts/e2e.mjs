@@ -171,8 +171,8 @@ try {
   check(true, 'upload + AI extraction completes');
   const req = requests[0];
   check(req?.url?.startsWith('/v1/messages'), 'app called the Messages API');
-  check(req?.headers['anthropic-beta']?.includes('server-side-fallback-2026-07-01'), 'request opts into server-side fallbacks');
-  check(req?.body?.model === 'claude-opus-5-5' && req?.body?.output_config?.format?.type === 'json_schema', 'request uses claude-opus-5-5 with structured output');
+  check(req?.body?.model === 'claude-haiku-5-5' && req?.body?.output_config?.format?.type === 'json_schema', 'request uses claude-haiku-5-5 (default) with structured output');
+  check(req?.body?.fallbacks === undefined, 'Haiku request does not send server-side fallbacks (unsupported)');
   check(req?.body?.messages?.[0]?.content?.[0]?.type === 'image', 'request includes the screenshot image');
   await shot('03-import-uploaded');
   await page.getByRole('button', { name: /Start reviewing/ }).click();
@@ -223,6 +223,31 @@ try {
   await page.getByRole('link', { name: 'Review' }).first().click();
   await page.getByText('The AI could not read this screenshot').waitFor();
   await shot('07-review-failed');
+
+  // Free on-phone reader: real Tesseract OCR in the browser on a synthetic post-list screenshot
+  const listPage = await context.newPage();
+  await listPage.setViewportSize({ width: 600, height: 900 });
+  await listPage.setContent(`<body style="margin:0;background:#fff;color:#111;font:30px Arial,sans-serif;padding:40px">
+    <div style="font-weight:bold;margin-bottom:40px">Posts</div>
+    <div style="margin-bottom:50px"><div>Best first cars under 3000 pounds</div><div style="color:#444">Sep 29</div><div>18.2K</div></div>
+    <div style="margin-bottom:50px"><div>Why insurance is so expensive at 17</div><div style="color:#444">Oct 3</div><div>7,431</div></div>
+  </body>`);
+  const freeImg = { name: 'free-list.png', mimeType: 'image/png', buffer: await listPage.screenshot({ type: 'png' }) };
+  await listPage.close();
+  await page.goto(`${BASE}/import`);
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('radio', { name: /Free \(on phone\)/ }).click();
+  const before = requests.length;
+  await page.locator('input[type=file]').setInputFiles(freeImg);
+  await page.getByText('Ready to review').waitFor({ timeout: 120000 });
+  check(requests.length === before, 'free reader makes no AI request');
+  await page.getByRole('link', { name: 'Review' }).first().click();
+  await page.getByText('Read by the free on-phone reader').waitFor();
+  const titles = await page.locator('label:has-text("Title (visible text)") input').evaluateAll((els) => els.map((e) => e.value));
+  check(titles.some((t) => /first cars under/i.test(t)) && titles.some((t) => /insurance/i.test(t)), `free reader found both video titles (${JSON.stringify(titles)})`);
+  const views = await page.locator('label:has-text("Views") input').evaluateAll((els) => els.map((e) => e.value));
+  check(views.includes('18.2K') && views.includes('7,431'), `free reader found the view counts (${JSON.stringify(views)})`);
+  await shot('07b-review-free-reader');
 
   // Manual video + snapshot
   await page.goto(`${BASE}/videos/new`);

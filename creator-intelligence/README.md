@@ -15,7 +15,7 @@ A private, mobile-first web app for tracking TikTok performance and making evide
 | **Videos** | Searchable library. Filter by category, format, hook style, record type, publish date, performance quartile, duration and tracking status. Sort by date, views or engagement. Highlights topics you have covered more than once. |
 | **Video detail** | Latest metrics, 24h / 72h / 7d / 30d checkpoints, views over time, full snapshot history (nothing is overwritten), traffic sources, content details, related videos, archive / stop tracking, delete. |
 | **Manual entry** | Add or edit videos with every field in the brief (hook, format, on camera, voiceover, own car, hashtags, and more). Add dated metric snapshots by hand. You can type values as TikTok shows them, e.g. `12.3K`. |
-| **Import** | Upload many screenshots at once from your photo library. Three kinds: **post list** (many videos per screenshot → historical basic records), **single video analytics** (detailed snapshot), **account overview** (followers and period totals). Claude reads each screenshot. You review and correct every value before anything is saved. |
+| **Import** | Upload many screenshots at once from your photo library. Three kinds: **post list** (many videos per screenshot → historical basic records), **single video analytics** (detailed snapshot), **account overview** (followers and period totals). Choose who reads them: **Claude** (most accurate, tiny cost) or the **free on-phone reader** (no cost, text recognition runs on your iPhone, less accurate). You review and correct every value before anything is saved. |
 | **Duplicate handling** | Same file uploaded twice → detected by hash. Same screen saved as a different file → flagged by content fingerprint. A video that appears in several screenshots → matched (TikTok ID when visible, otherwise title + date similarity, with truncated titles handled) and stored as a new dated snapshot instead of a new video. Uncertain matches require your choice. |
 | **Update queue** | “Screenshots to collect” on Home: which tracked videos are due a 24h / 72h / 7d / 30d screenshot. It stops after 30 days, and archived videos are skipped. |
 | **Account** | Follower snapshots (manual or from screenshots). Account-level data is stored separately from video data. |
@@ -35,14 +35,25 @@ A private, mobile-first web app for tracking TikTok performance and making evide
 
 ## Deploy it (from your iPhone, about 15 minutes)
 
-You need three free or low-cost accounts: **GitHub** (you have it), **Vercel** (hosting + database) and **Anthropic** (AI). Everything below works in Safari.
+You need **GitHub** (you have it) and **Vercel** (hosting + database, free plan). An **Anthropic** account is optional: it only powers the Claude screenshot reader. Everything below works in Safari.
 
-### 1. Get an Anthropic API key
+### Running it for free
+
+Vercel’s Hobby plan and Neon’s free database plan cost nothing for a personal app like this. Without an Anthropic key, the app still works fully: use the **free on-phone reader** for screenshots, or type numbers in. The only paid part is Claude, and only if you choose to use it.
+
+| Screenshot reader | Cost | Accuracy |
+| --- | --- | --- |
+| Free on-phone reader (Tesseract) | £0 | Reads text well, but can’t tell which number is which, so you check and fix more |
+| Claude, `claude-haiku-5-5` (default) | well under 1p per screenshot | Good; understands the layout |
+| Claude, `claude-sonnet-5-5` | about 3p per screenshot | Better on dense or unusual screens |
+| Claude, `claude-opus-5-5` | about 3–8p per screenshot | Most careful |
+
+Claude costs are approximate. Settings shows how many AI requests you’ve made, and there is a daily limit (default 150). A Claude.ai subscription does not include API usage; the API is billed separately.
+
+### 1. (Optional) Get an Anthropic API key
 
 1. Go to <https://console.anthropic.com>, sign up, and add a small amount of credit (Billing).
-2. **API keys → Create key**. Copy it (it starts with `sk-ant-`). You’ll paste it into Vercel in step 3.
-
-Cost guide: reading one screenshot with the default model (`claude-opus-5-5`) costs roughly 3–8p, depending on how much is on screen. Settings shows your AI usage. Set `ANTHROPIC_MODEL=claude-sonnet-5-5` to roughly halve it. The app has a daily request limit (default 150).
+2. **API keys → Create key**. Copy it (it starts with `sk-ant-`). You’ll paste it into Vercel in step 2.
 
 ### 2. Create the Vercel project
 
@@ -51,7 +62,7 @@ Cost guide: reading one screenshot with the default model (`claude-opus-5-5`) co
 3. On the configure screen, set **Root Directory** to `creator-intelligence`. The framework is detected as Next.js automatically.
 4. Open **Environment Variables** and add:
    - `APP_PASSWORD`: the password you’ll sign in with. Make it long.
-   - `ANTHROPIC_API_KEY`: the key from step 1.
+   - `ANTHROPIC_API_KEY`: the key from step 1 (skip it to use only the free reader).
 5. Click **Deploy**. The first deployment will show a **“Finish setting up”** screen because there is no database yet. This is expected.
 
 ### 3. Add the database
@@ -78,8 +89,8 @@ The app creates its tables automatically on first use.
 | --- | --- | --- |
 | `APP_PASSWORD` | Yes | Sign-in password. Changing it signs out every device. |
 | `DATABASE_URL` | Yes (production) | Postgres connection string. Neon sets it automatically. |
-| `ANTHROPIC_API_KEY` | For AI | Enables screenshot reading. Without it, the app still works with manual entry. |
-| `ANTHROPIC_MODEL` | No | Defaults to `claude-opus-5-5`. |
+| `ANTHROPIC_API_KEY` | For Claude | Enables the Claude screenshot reader. Without it, use the free on-phone reader or manual entry. |
+| `ANTHROPIC_MODEL` | No | Defaults to `claude-haiku-5-5` (cheapest). Use `claude-sonnet-5-5` or `claude-opus-5-5` for more careful reading. |
 | `AI_DAILY_LIMIT` | No | Maximum AI requests in 24 hours (default 150). |
 | `SESSION_SECRET` | No | Explicit session signing key (16+ characters). |
 
@@ -104,8 +115,8 @@ Postgres (Neon or Supabase)
 ```
 
 - **Stack:** Next.js 16 (App Router, TypeScript), Tailwind CSS 4, Recharts, `postgres` driver, Anthropic TypeScript SDK, zod.
-- **Screenshot pipeline:** the browser hashes the original file (SHA-256), reads its capture date from metadata where available, resizes it, and uploads it. The server validates the real file type from its bytes, stores the image temporarily, and asks Claude to **transcribe the visible text only** into a strict JSON schema. Numbers and dates are converted by deterministic, tested code (`src/lib/parse.ts`), not by the model. You then review and confirm, and the save runs in one database transaction.
-- **AI safeguards:** server-side calls only, per-minute and per-day limits, usage logged in `ai_usage`, typed error handling, and server-side model fallback if a request is declined.
+- **Screenshot pipeline:** the browser hashes the original file (SHA-256), reads its capture date from metadata where available, resizes it, and uploads it. With the **free reader**, Tesseract (self-hosted under `/ocr`, about 7 MB downloaded once) recognises the text on the phone and `src/lib/ocr-parse.ts` turns the lines into entries, flagging every value for checking. The server validates the real file type from its bytes, stores the image temporarily, and asks Claude to **transcribe the visible text only** into a strict JSON schema. Numbers and dates are converted by deterministic, tested code (`src/lib/parse.ts`), not by the model. You then review and confirm, and the save runs in one database transaction.
+- **AI safeguards:** server-side calls only, per-minute and per-day limits, usage logged in `ai_usage`, typed error handling, and server-side model fallback if a request is declined (on models that support it; Haiku doesn’t).
 - **Future TikTok API:** videos have `tiktok_video_id` and a `source` field. Snapshots and account snapshots accept `source = 'tiktok_api'`, so an authorised integration can write into the same tables later.
 
 ### Project layout
@@ -125,7 +136,8 @@ creator-intelligence/
 │       ├── matching.ts          duplicate / same-video matching
 │       ├── metrics.ts           dashboard calculations
 │       ├── checkpoints.ts       24h/72h/7d/30d checkpoints and update queue
-│       ├── review.ts            AI transcription ↔ editable review entries ↔ confirm payload
+│       ├── ocr-parse.ts         free on-phone reader: text lines → entries
+│       ├── review.ts            transcription ↔ editable review entries ↔ confirm payload
 │       └── library.ts           search, filters, repeated topics
 ├── tests/                       Vitest unit + database integration tests
 └── scripts/e2e.mjs              end-to-end test in Chromium at iPhone size

@@ -52,9 +52,9 @@ export async function extractScreenshot(
     response = await client.beta.messages.parse({
       model: args.model,
       max_tokens: 16000,
-      // On a safety decline, let the API retry on Anthropic's recommended fallback model.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      // On a safety decline, let the API retry on Anthropic's recommended fallback model
+      // (only on models that support server-side fallback; Haiku does not).
+      ...(supportsServerFallback(args.model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
       output_config: { effort: 'medium', format: betaZodOutputFormat(extractionSchema) },
       system: SYSTEM_PROMPT,
       messages: [
@@ -82,6 +82,12 @@ export async function extractScreenshot(
     throw Object.assign(new ExtractionError('The AI returned data in an unexpected format, so nothing was saved. Try again or enter the numbers manually.'), usage);
   }
   return { extraction: sanitiseExtraction(parsed.data), model: response.model ?? args.model, ...usage };
+}
+
+const FALLBACK_MODELS = ['claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-fable-5'];
+
+export function supportsServerFallback(model: string) {
+  return FALLBACK_MODELS.includes(model);
 }
 
 /** Clamps thumbnail boxes to the image and trims strings; never adds data. */

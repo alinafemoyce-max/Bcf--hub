@@ -14,7 +14,7 @@ export default async function StrategistPage() {
   const withHooks = videos.filter((v) => v.hook).length;
   const detailed = new Set(snapshots.filter((s) => s.completeness === 'detailed').map((s) => s.video_id)).size;
   const checks = [
-    { ok: isAiConfigured(), label: 'Claude API key configured', hint: 'ANTHROPIC_API_KEY in your environment variables' },
+    { ok: isAiConfigured(), label: 'Claude API key configured', hint: 'The strategist needs ANTHROPIC_API_KEY (pay-as-you-go; the cheap Haiku model is the default)' },
     { ok: videos.length >= 10, label: `At least 10 videos in your library (${videos.length})`, hint: 'Import your post list screenshots' },
     { ok: categorised >= Math.min(10, videos.length) && categorised > 0, label: `Videos have categories (${categorised}/${videos.length})`, hint: 'Edit videos to add category, topic and hook' },
     { ok: withHooks >= 5, label: `Hooks recorded (${withHooks})`, hint: 'Hooks let the strategist compare openings' },

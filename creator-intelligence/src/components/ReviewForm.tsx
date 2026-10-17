@@ -1,12 +1,14 @@
 'use client';
 
-import { AlertTriangle, ChevronDown, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Copy, Plus, RefreshCw, Smartphone, Sparkles, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/client';
 import { compact, date, published, toLocalInput } from '@/lib/format';
 import { cropThumbnail } from '@/lib/image-client';
+import { ocrStatusLabel, recognizeImage } from '@/lib/ocr-client';
+import { OCR_MODEL_LABEL, ocrToExtraction } from '@/lib/ocr-parse';
 import type { MatchResult } from '@/lib/matching';
 import { localToUtc, parseCount, toLocalParts } from '@/lib/parse';
 import type { ImportSummary, ScreenshotRecord } from '@/lib/repo/screenshots';
@@ -84,15 +86,33 @@ export function ReviewForm({
   const update = (key: string, p: Partial<ReviewEntry>) => setEntries((list) => list.map((e) => (e.key === key ? { ...e, ...p } : e)));
 
   async function retryExtraction() {
+    if (ex && !confirm('Read this screenshot again with Claude? Your edits on this page will be replaced.')) return;
     setExtracting(true);
     setError(null);
     try {
       await api(`/api/screenshots/${screenshot.id}/extract`, { method: 'POST' });
-      router.refresh();
       window.location.reload();
     } catch (e) {
       setError((e as Error).message);
       setExtracting(false);
+    }
+  }
+
+  const [ocrProgress, setOcrProgress] = useState<string | null>(null);
+  async function readOnPhone() {
+    if (ex && !confirm('Read this screenshot again with the free on-phone reader? Your edits on this page will be replaced.')) return;
+    setError(null);
+    setOcrProgress('Starting the reader…');
+    try {
+      const res = await fetch(`/api/screenshots/${screenshot.id}/image`);
+      if (!res.ok) throw new Error('The image is no longer stored, so it cannot be read again.');
+      const ocr = await recognizeImage(await res.blob(), (status, p) => setOcrProgress(`${ocrStatusLabel(status, p)}…`));
+      const extraction = ocrToExtraction(screenshot.kind, ocr.lines, { width: ocr.width, height: ocr.height }, observedDate);
+      await api(`/api/screenshots/${screenshot.id}/ocr`, { method: 'POST', json: extraction });
+      window.location.reload();
+    } catch (e) {
+      setError((e as Error).message);
+      setOcrProgress(null);
     }
   }
 
@@ -203,16 +223,52 @@ export function ReviewForm({
           ) : (
             'AI is not configured (ANTHROPIC_API_KEY), so enter the values by hand.'
           )}
-          {aiConfigured && screenshot.has_image && (
-            <Button variant="secondary" className="mt-2 w-full" onClick={retryExtraction} disabled={extracting}>
-              {extracting ? <Spinner /> : <RefreshCw size={16} />} {screenshot.status === 'failed' ? 'Try reading again' : 'Read with Claude'}
-            </Button>
+          {screenshot.has_image && (
+            <div className="mt-2 grid gap-2">
+              {aiConfigured && (
+                <Button variant="secondary" className="w-full" onClick={retryExtraction} disabled={extracting || ocrProgress !== null}>
+                  {extracting ? <Spinner /> : <RefreshCw size={16} />} {screenshot.status === 'failed' ? 'Try Claude again' : 'Read with Claude'}
+                </Button>
+              )}
+              <Button variant="secondary" className="w-full" onClick={readOnPhone} disabled={extracting || ocrProgress !== null}>
+                {ocrProgress ? <Spinner /> : <Smartphone size={16} />} {ocrProgress ?? 'Read free on this phone'}
+              </Button>
+            </div>
           )}
         </Notice>
       )}
+      {ex && (
+        <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
+          {screenshot.extraction_model === OCR_MODEL_LABEL ? (
+            <Badge>
+              <Smartphone size={12} /> Read by the free on-phone reader
+            </Badge>
+          ) : (
+            <Badge tone="accent">
+              <Sparkles size={12} /> Read by Claude
+            </Badge>
+          )}
+          {screenshot.has_image && (
+            <>
+              <span>Not right?</span>
+              {screenshot.extraction_model === OCR_MODEL_LABEL ? (
+                aiConfigured && (
+                  <button className="text-accent" onClick={retryExtraction} disabled={extracting}>
+                    {extracting ? 'Reading…' : 'Try Claude instead'}
+                  </button>
+                )
+              ) : (
+                <button className="text-accent" onClick={readOnPhone} disabled={ocrProgress !== null}>
+                  {ocrProgress ?? 'Try the free reader'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
       {ex?.warnings.length ? (
         <Notice tone="warn">
-          <div className="font-medium">Notes from the AI</div>
+          <div className="font-medium">{screenshot.extraction_model === OCR_MODEL_LABEL ? 'Before you save' : 'Notes from the AI'}</div>
           <ul className="mt-1 list-disc pl-5">
             {ex.warnings.map((w, i) => (
               <li key={i}>{w}</li>
@@ -239,6 +295,8 @@ export function ReviewForm({
           </div>
         </Card>
       )}
+
+      {ex?.ocr_lines?.length ? <OcrText lines={ex.ocr_lines} /> : null}
 
       <Card className="space-y-2">
         <Field
@@ -351,7 +409,7 @@ function EntryCard({
           <div className="mt-1 flex flex-wrap gap-1">
             {e.partial && <Badge tone="warn">Partly cut off</Badge>}
             {e.titleTruncated && <Badge tone="warn">Title truncated</Badge>}
-            {e.uncertain.length > 0 && <Badge tone="warn">Hard to read: {e.uncertain.join(', ')}</Badge>}
+            {e.uncertain.length > 0 && <Badge tone="warn">Check: {e.uncertain.join(', ')}</Badge>}
           </div>
         </div>
         <button onClick={onRemove} aria-label="Remove entry" className="grid size-9 place-items-center rounded-lg text-ink-3 hover:text-bad">
@@ -579,6 +637,48 @@ function AccountCard({ account, onChange }: { account: AccountState; onChange: (
       <p className="text-[12px] text-ink-3">
         Need just your follower count? <Link className="text-accent" href="/account">Add it on the Account page.</Link>
       </p>
+    </Card>
+  );
+}
+
+function OcrText({ lines }: { lines: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState<number | null>(null);
+  return (
+    <Card className="p-0">
+      <button className="flex w-full items-center justify-between px-4 py-3 text-left text-[14px] font-medium" onClick={() => setOpen(!open)}>
+        <span>
+          Text found on the screenshot <span className="font-normal text-ink-3">({lines.length} lines · tap to copy)</span>
+        </span>
+        <ChevronDown size={18} className={cx('shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+          {lines.map((line, i) => (
+            <button
+              key={i}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(line);
+                  setCopied(i);
+                  setTimeout(() => setCopied((c) => (c === i ? null : c)), 1200);
+                } catch {
+                  // clipboard blocked; the text is still visible to read
+                }
+              }}
+              className={cx('max-w-full truncate rounded-lg border px-2 py-1 text-left text-[12.5px]', copied === i ? 'border-good/50 bg-good/10 text-ink' : 'border-line bg-surface-2 text-ink-2')}
+            >
+              {copied === i ? (
+                <>
+                  <Copy size={11} className="mr-1 inline" /> Copied
+                </>
+              ) : (
+                line
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

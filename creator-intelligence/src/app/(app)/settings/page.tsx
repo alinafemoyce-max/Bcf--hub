@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert } from 'lucide-react';
+import { CheckCircle2, Circle, CircleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { DataActions, KeepScreenshotsToggle, LogoutButton } from '@/components/SettingsActions';
 import { Card, CardTitle, PageTitle } from '@/components/ui';
@@ -24,7 +24,7 @@ export default async function SettingsPage() {
   const rows = [
     { ok: config.database !== 'missing', label: 'Database', value: config.database === 'postgres' ? 'Postgres (DATABASE_URL)' : config.database === 'local' ? 'Local development database' : 'Not configured' },
     { ok: config.password, label: 'Sign-in password', value: config.password ? 'Set (APP_PASSWORD)' : 'Missing' },
-    { ok: config.ai, label: 'Claude API', value: config.ai ? `Connected · ${config.model}` : 'ANTHROPIC_API_KEY not set' }
+    { ok: config.ai, optional: true, label: 'Claude screenshot reader', value: config.ai ? `Connected · ${config.model}` : 'Not set up (optional). The free on-phone reader and manual entry still work.' }
   ];
 
   return (
@@ -35,7 +35,13 @@ export default async function SettingsPage() {
         <ul className="space-y-2.5">
           {rows.map((r) => (
             <li key={r.label} className="flex items-start gap-2.5">
-              {r.ok ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-good" /> : <CircleAlert size={18} className="mt-0.5 shrink-0 text-warn" />}
+              {r.ok ? (
+                <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-good" />
+              ) : 'optional' in r ? (
+                <Circle size={18} className="mt-0.5 shrink-0 text-ink-3" />
+              ) : (
+                <CircleAlert size={18} className="mt-0.5 shrink-0 text-warn" />
+              )}
               <div>
                 <div className="text-[14px] font-medium">{r.label}</div>
                 <div className="text-[12.5px] text-ink-3">{r.value}</div>
